@@ -58,6 +58,7 @@
   .session-terminal {
     position: fixed;
     inset: 0;
+    padding: 12px;
     overflow: hidden;
   }
 </style>
