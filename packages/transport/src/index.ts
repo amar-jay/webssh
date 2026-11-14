@@ -187,10 +187,10 @@ async function boot(): Promise<Transport> {
   }
   if (!globalThis.Go) throw new Error('Go WASM runtime did not initialize');
   const go = new globalThis.Go();
-  const response = await fetch('/tailcat/webssh.wasm');
+  const response = await fetch('/tailcat/webssh.wasm.gz');
   if (!response.ok) throw new Error(`Could not load WebSSH WASM (${response.status})`);
   // arrayBuffer works on hosts that do not set the WASM streaming MIME type.
-  const { instance } = await WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
+  const { instance } = await WebAssembly.instantiate(await new Response(response.body!.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer(), go.importObject);
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => { cleanup(); reject(new Error('WebSSH WASM readiness timed out')); }, 30_000);
     const cleanup = () => { clearTimeout(timer); globalThis.onWebSSHTailcatReady = undefined; };

@@ -13,7 +13,7 @@ pnpm wasm:build
 pnpm --filter @webssh/transport test:wasm
 ```
 
-The build writes `webssh.wasm`, the matching Go toolchain's `wasm_exec.js`, and version metadata to ignored `apps/web/static/tailcat/`. It does not modify READMEs or fetch a hosted demo binary. The initial build is approximately 33 MiB uncompressed. It currently uses an untrimmed Go build for correctness; version-specific feature omission and compression are future deployment work. Check generated size against the actual hosting platform's limits before deploying.
+The build writes `webssh.wasm.gz`, the matching Go toolchain's `wasm_exec.js`, and version metadata to ignored `apps/web/static/tailcat/`. It does not modify READMEs or fetch a hosted demo binary. The initial build is approximately 33 MiB uncompressed. It currently uses an untrimmed Go build for correctness; version-specific feature omission and compression are future deployment work. Check generated size against the actual hosting platform's limits before deploying.
 
 Call only in browser code, such as a Svelte `onMount` callback:
 
@@ -62,7 +62,7 @@ The snippet's application variables are placeholders. No shell connection is exp
 
 The Go Promise executor callback is released after synchronous Promise construction. Only the two global bridge callbacks remain registered for the WASM runtime's lifetime. Request cancellation records are removed on completion; stream handles are removed on explicit stream/client close. Always close streams after EOF/errors to release handles as well as sockets.
 
-The loader uses same-origin `/tailcat/` paths and buffers the WASM before instantiation, so it does not depend on streaming MIME configuration. It does not yet implement download progress or compression negotiation. Hosts with an application base path need a loader path configuration before using this default. Configure HTTPS/WSS, relay origins, CORS, CSP, and WASM execution policy at deployment.
+The loader uses same-origin `/tailcat/` paths and buffers the WASM before instantiation, so it does not depend on streaming MIME configuration. It fetches the gzip asset and decompresses it with the browser’s DecompressionStream before instantiation, keeping the uploaded asset below Cloudflare’s individual file limit. It does not yet implement download progress. Hosts with an application base path need a loader path configuration before using this default. Configure HTTPS/WSS, relay origins, CORS, CSP, and WASM execution policy at deployment.
 
 ## Verification
 

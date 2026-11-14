@@ -1,3 +1,4 @@
+import { gunzipSync } from 'node:zlib';
 // Run explicitly after wasm:build. The WASM main stays alive by design, so this
 // smoke test exits its Node process after testing the real JS/Go boundary.
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import { runInThisContext } from 'node:vm';
 const assets = new URL('../../../apps/web/static/tailcat/', import.meta.url);
 runInThisContext(await readFile(new URL('wasm_exec.js', assets), 'utf8'));
 const go = new globalThis.Go();
-const { instance } = await WebAssembly.instantiate(await readFile(new URL('webssh.wasm', assets)), go.importObject);
+const { instance } = await WebAssembly.instantiate(gunzipSync(await readFile(new URL('webssh.wasm.gz', assets))), go.importObject);
 const timer = setTimeout(() => { console.error('WASM readiness timed out'); process.exit(1); }, 15_000);
 const ready = new Promise(resolve => { globalThis.onWebSSHTailcatReady = resolve; });
 void go.run(instance).catch(error => { console.error(error); process.exit(1); });

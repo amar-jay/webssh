@@ -1,5 +1,6 @@
+import { gzipSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
-import { mkdir, copyFile, writeFile } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, readFile, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,9 +10,11 @@ const output = join(root, 'apps/web/static/tailcat');
 await mkdir(output, { recursive: true });
 // Leave upstream feature omission tags out initially: correctness first. Review
 // a version-matched WASM keep-list before optimizing binary size.
-execFileSync('go', ['build', '-trimpath', '-ldflags=-s -w', '-o', join(output, 'webssh.wasm'), './cmd/webssh-wasm'], {
-  cwd: moduleDir, env: { ...process.env, GOOS: 'js', GOARCH: 'wasm' }, stdio: 'inherit'
+execFileSync('go', ['build', '-p', '1', '-trimpath', '-ldflags=-s -w', '-o', join(output, 'webssh.wasm'), './cmd/webssh-wasm'], {
+  cwd: moduleDir, env: { ...process.env, GOMAXPROCS: '2', GOOS: 'js', GOARCH: 'wasm' }, stdio: 'inherit'
 });
+await writeFile(join(output, 'webssh.wasm.gz'), gzipSync(await readFile(join(output, 'webssh.wasm'))));
+await rm(join(output, 'webssh.wasm'));
 const goRoot = execFileSync('go', ['env', 'GOROOT'], { cwd: moduleDir, encoding: 'utf8' }).trim();
 await copyFile(join(goRoot, 'lib/wasm/wasm_exec.js'), join(output, 'wasm_exec.js'));
 await writeFile(join(output, 'build.json'), JSON.stringify({
