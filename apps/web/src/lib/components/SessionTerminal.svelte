@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { createTerminal, type SessionTerminal, type TerminalOptions } from '#lib/terminal/create-terminal.js';
   import '@xterm/xterm/css/xterm.css';
+  import { tokyoNightMoon } from '#lib/terminal/theme.js';
 
   let { sessionId, options = {}, onReady }: {
     sessionId: string;
@@ -51,13 +52,12 @@
   });
 </script>
 
-<div class="session-terminal" bind:this={container} aria-label={`Terminal session ${sessionId}`}></div>
+<div class="session-terminal" style:background={tokyoNightMoon.background} bind:this={container} aria-label={`Terminal session ${sessionId}`}></div>
 
 <style>
   .session-terminal {
     position: fixed;
     inset: 0;
     overflow: hidden;
-    background: #000;
   }
 </style>

@@ -25,3 +25,7 @@ The component accepts `onReady(controller)` for integration with the application
 - The published web-fonts addon currently requires an xterm prerelease newer than our stable xterm 6.0.0 dependency. The terminal uses system fonts and waits for `document.fonts.ready` before opening instead.
 
 Remote transport is not implemented yet. The route attaches `mock-session.ts`, a browser-only adapter with sample output and canned commands. Type `help` for commands or `demo` for rendering samples. It supports command history, basic line editing, Ctrl+C, and Ctrl+L. It never executes host commands. Replace the route’s mock `onReady` handler with the Tailcat adapter when transport is ready.
+
+## Theme
+
+The terminal uses the supplied Tokyo Night Moon palette in `theme.ts`, including all 16 ANSI colors, foreground, background, selection, and block cursor colors. The full-screen container shares the theme background. xterm has no separate theme properties for bold text color, link color, badges, or a cursor guide; those supplied values are retained as accent tokens but are not applied by the renderer.

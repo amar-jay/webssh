@@ -1,6 +1,7 @@
 import type { IDisposable, Terminal } from '@xterm/xterm';
 import type { ISearchOptions } from '@xterm/addon-search';
 import type { IProgressState } from '@xterm/addon-progress';
+import { tokyoNightMoon } from './theme.js';
 
 export interface TerminalOptions {
   unicode?: '11' | 'graphemes';
@@ -30,7 +31,7 @@ export async function createTerminal(container: HTMLElement, options: TerminalOp
     cursorBlink: true,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     fontSize: 14,
-    theme: { background: '#000000', foreground: '#eeeeee' }
+    theme: tokyoNightMoon
   });
   const disposables: IDisposable[] = [];
   try {
