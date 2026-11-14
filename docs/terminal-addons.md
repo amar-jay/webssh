@@ -30,6 +30,18 @@ Remote transport is not implemented yet. The route attaches `mock-session.ts`, a
 
 The terminal uses the supplied Tokyo Night Moon palette in `theme.ts`, including all 16 ANSI colors, foreground, background, selection, and block cursor colors. The full-screen container shares the theme background. xterm has no separate theme properties for bold text color, link color, badges, or a cursor guide; those supplied values are retained as accent tokens but are not applied by the renderer.
 
+## Clipboard shortcuts
+
+While a session page is open, the terminal captures common DevTools shortcuts so they do not open inspector UI:
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl/Cmd+Shift+C | Copy the current selection |
+| Ctrl/Cmd+Shift+V | Paste from the clipboard into the terminal |
+| Ctrl/Cmd+Shift+I/J/K, Cmd+Option+I/J/C | Blocked (best-effort); F12 still opens DevTools |
+
+Browsers reserve some of these chords; `preventDefault` cannot always stop DevTools. Ctrl/Cmd+C remains the interrupt character for the remote shell.
+
 ## Terminal fonts
 
 The web terminal self-hosts JetBrains Mono at regular/bold weights with italic variants through `@fontsource/jetbrains-mono`. Symbols Nerd Font Mono v3.4.0 supplies file/folder, prompt, and other Nerd Font glyphs as a fallback. Its upstream license is retained beside the asset. Standard system monospace fonts remain the final fallback.

@@ -97,8 +97,64 @@ export async function createTerminal(container: HTMLElement, options: TerminalOp
     terminal.loadAddon(new ImageAddon({ storageLimit: 32, pixelLimit: 4_194_304 }));
     fit.fit();
 
+    async function copySelection() {
+      const text = terminal.getSelection();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Clipboard permissions/secure-context requirements vary by browser.
+      }
+    }
+
+    async function pasteClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) terminal.paste(text);
+      } catch {
+        // Paste requires a secure context and clipboard-read permission.
+      }
+    }
+
+    // Capture-phase so we beat browser DevTools bindings while this page owns focus.
+    // Reserved shortcuts cannot always be blocked; preventDefault is best-effort.
+    const onShortcut = (event: KeyboardEvent) => {
+      if (event.type !== 'keydown' || event.repeat) return;
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const mod = event.ctrlKey || event.metaKey;
+
+      if (mod && event.shiftKey && key === 'c') {
+        event.preventDefault();
+        event.stopPropagation();
+        void copySelection();
+        return;
+      }
+      if (mod && event.shiftKey && key === 'v') {
+        event.preventDefault();
+        event.stopPropagation();
+        void pasteClipboard();
+        return;
+      }
+
+      const opensDevtools =
+        (mod && event.shiftKey && (key === 'i' || key === 'j' || key === 'k')) ||
+        (event.metaKey && event.altKey && (key === 'i' || key === 'j' || key === 'c'));
+      if (opensDevtools) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', onShortcut, true);
+    disposables.push({ dispose: () => window.removeEventListener('keydown', onShortcut, true) });
+
     let lastSearch = '';
     terminal.attachCustomKeyEventHandler((event) => {
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+      const mod = event.ctrlKey || event.metaKey;
+      if (mod && event.shiftKey && (key === 'c' || key === 'v')) {
+        // Handled by the capture listener; keep the byte out of the PTY.
+        return false;
+      }
       if (event.key !== 'F3') return true;
       event.preventDefault();
       if (event.type === 'keydown') {
