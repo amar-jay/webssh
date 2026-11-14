@@ -16,17 +16,14 @@ import (
 	"github.com/amar-jay/webssh/apps/cli/internal/pairing"
 )
 
+const webSSHOrigin = "https://ssh.amarjay.com"
+
 func pairCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "pair",
 		Usage: "Pair this machine with an authenticated browser",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "renew", Usage: "rotate an existing paired credential (requires online access)"},
-			&cli.StringFlag{
-				Name:    "origin",
-				Usage:   "WebSSH site origin",
-				Sources: cli.EnvVars("WEBSSH_ORIGIN"),
-			},
 			&cli.StringFlag{
 				Name:  "config",
 				Usage: "configuration file (default: ~/.webssh/config.toml)",
@@ -87,10 +84,6 @@ func runPair(ctx context.Context, cmd *cli.Command) error {
 		return finishCredentialRecovery(ctx, credFile, recovery)
 	}
 
-	origin := cmd.String("origin")
-	if origin == "" {
-		return errors.New("set --origin or WEBSSH_ORIGIN to the WebSSH site origin")
-	}
 	configFile := cmd.String("config")
 	if configFile == "" {
 		var err error
@@ -107,7 +100,7 @@ func runPair(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
-	client, err := pairing.NewClient(origin)
+	client, err := pairing.NewClient(webSSHOrigin)
 	if err != nil {
 		return err
 	}

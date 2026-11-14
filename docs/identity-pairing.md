@@ -42,7 +42,7 @@ pnpm --filter @webssh/web exec wrangler secret put SESSION_SECRET
 ## CLI
 
 ```sh
-webssh pair --origin "$PUBLIC_ORIGIN"
+webssh pair
 webssh serve .
 ```
 

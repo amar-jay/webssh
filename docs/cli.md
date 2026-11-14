@@ -17,7 +17,7 @@ Run from `apps/cli`:
 ```sh
 go run ./cmd/webssh --help
 go run ./cmd/webssh config
-go run ./cmd/webssh pair --origin https://webssh-web.abdelmanan-abdelrahman03.workers.dev
+go run ./cmd/webssh pair
 go run ./cmd/webssh serve .
 go run ./cmd/webssh config --path /tmp/webssh-config.toml
 GOMAXPROCS=2 go test -p 1 ./...
@@ -31,7 +31,7 @@ By default the TOML file is stored at `~/.webssh/config.toml`, using `os.UserHom
 
 Configuration is versioned with `version = 1`. The shell field is an executable name/path, not a shell command; no process is launched by the questionnaire. The agent uses the configured shell executable.
 
-`webssh pair --origin URL` starts a short-lived pairing attempt, prints a code and approval URL, and waits until the authenticated browser approves. The CLI then writes `~/.webssh/credentials.toml` (mode 0600). Existing credentials require `--replace`. Set the origin with `--origin` or `WEBSSH_ORIGIN`.
+`webssh pair` starts a short-lived pairing attempt against the fixed production origin `https://ssh.amarjay.com`, prints a code and approval URL, and waits until the authenticated browser approves. The CLI then writes `~/.webssh/credentials.toml` (mode 0600). Existing credentials require `--replace`.
 
 `webssh serve <path>` starts the agent in an existing workspace directory. It loads configuration without prompting. If paired credentials exist, attach uses short-lived HMAC grants verified with the stored `grant_key`; the per-run application token is not used. Without credentials, it refuses to start unless `--dev-token` is explicit. `--dev-token` also mints that development token for `/dev/connect` even when paired. `--json` emits one connection record; flags must precede the path. `--config`, `--credentials`, `--port`, `--derpmap-url`, and `--max-connections` customize startup. Ctrl+C or SIGTERM stops the agent and its sessions.
 
