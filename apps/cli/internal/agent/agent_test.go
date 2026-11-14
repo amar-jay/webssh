@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ const testToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func testAgent(t *testing.T, shell string) *Agent {
 	t.Helper()
-	a, err := New(Options{Workspace: t.TempDir(), Shell: shell, Token: testToken})
+	a, err := New(Options{Workspace: t.TempDir(), Shell: shell, AllowDevToken: true, Token: testToken})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +95,47 @@ func TestUnauthorizedCannotStartShell(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("shell started before auth: %v", err)
+	}
+}
+
+func TestInvalidGrantNeverStartsShell(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "started")
+	shell := filepath.Join(t.TempDir(), "shell")
+	if err := os.WriteFile(shell, []byte("#!/bin/sh\ntouch '"+marker+"'\nexec /bin/sh -i\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(Options{
+		Workspace: t.TempDir(),
+		Shell:     shell,
+		Grants:    NewGrantVerifier("agent1", "grant-key-material"), SessionID: "sess1", CheckAccess: func(context.Context, string, string) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, _ := connect(t, a)
+	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: testToken, Cols: 80, Rows: 24})
+	if got := receive(t, conn); got.Type != "error" || got.Error != "unauthorized" {
+		t.Fatalf("dev token against grants-only agent: %+v", got)
+	}
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("shell started before grant: %v", err)
+	}
+
+	conn2, _ := connect(t, a)
+	grant := EncodeGrant("agent1", "grant-key-material", "sess1", "nonce1", time.Now().Add(time.Minute).Unix())
+	send(t, conn2, protocol.Message{Type: "attach", Version: 1, Token: grant, Cols: 80, Rows: 24})
+	if got := receive(t, conn2); got.Type != "ready" {
+		t.Fatalf("valid grant: %+v", got)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("shell marker not created")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -188,7 +230,7 @@ func TestInvalidHandshakeAndResize(t *testing.T) {
 func TestOptionsValidation(t *testing.T) {
 	for _, opts := range []Options{
 		{Workspace: "", Shell: "/bin/sh"}, {Workspace: t.TempDir(), Shell: "/not/a/shell"},
-		{Workspace: t.TempDir(), Shell: "/bin/sh", Token: "short"}, {Workspace: t.TempDir(), Shell: "/bin/sh", Port: -1},
+		{Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: "short"}, {Workspace: t.TempDir(), Shell: "/bin/sh", Port: -1},
 		{Workspace: t.TempDir(), Shell: "/bin/sh", MaxConnections: -1},
 	} {
 		if _, err := New(opts); err == nil {
@@ -196,11 +238,71 @@ func TestOptionsValidation(t *testing.T) {
 		}
 	}
 	a := testAgent(t, "/bin/sh")
-	b, err := New(Options{Workspace: a.opts.Workspace, Shell: "/bin/sh"})
+	b, err := New(Options{Workspace: a.opts.Workspace, Shell: "/bin/sh", AllowDevToken: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(b.opts.Token) != 43 || b.opts.Port != protocol.DefaultPort {
 		t.Fatal("missing ephemeral defaults")
+	}
+}
+
+func TestRunBindingAndOnlineDenial(t *testing.T) {
+	a := testAgent(t, "/bin/sh")
+	a.opts.Grants = NewGrantVerifier("agent", "key")
+	a.opts.SessionID = "this-run"
+	a.opts.AllowDevToken = false
+	calls := 0
+	a.opts.CheckAccess = func(context.Context, string, string) error { calls++; return errors.New("revoked") }
+	if a.authorize(EncodeGrant("agent", "key", "other-run", "n1", time.Now().Unix()+60)) {
+		t.Fatal("foreign run admitted")
+	}
+	if calls != 0 {
+		t.Fatal("foreign run reached control plane")
+	}
+	if a.authorize(EncodeGrant("agent", "key", "this-run", "n2", time.Now().Unix()+60)) {
+		t.Fatal("revoked/offline agent admitted")
+	}
+	if calls != 1 {
+		t.Fatal("missing online authorization")
+	}
+}
+
+func TestNoImplicitDevelopmentAuthentication(t *testing.T) {
+	if _, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh"}); err == nil {
+		t.Fatal("implicit token fallback")
+	}
+	if _, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh", Token: testToken}); err == nil {
+		t.Fatal("implicit dev token enable")
+	}
+}
+
+func TestLiveConnectionClosesOnOnlineRevocation(t *testing.T) {
+	a := testAgent(t, "/bin/sh")
+	a.opts.Grants = NewGrantVerifier("agent", "key")
+	a.opts.SessionID = "run"
+	a.opts.AllowDevToken = false
+	var revoked atomic.Bool
+	a.opts.CheckAccess = func(context.Context, string, string) error {
+		if revoked.Load() {
+			return errors.New("revoked")
+		}
+		return nil
+	}
+	conn, _ := connect(t, a)
+	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: EncodeGrant("agent", "key", "run", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
+	if m := receive(t, conn); m.Type != "ready" {
+		t.Fatal("not ready")
+	}
+	revoked.Store(true)
+	_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	for {
+		_, err := protocol.Read(conn)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				t.Fatal("revocation did not close socket")
+			}
+			break
+		}
 	}
 }

@@ -48,9 +48,10 @@ try {
  await until(async()=>{try{return /^\d+ \d+\s*$/.test(await readFile(resolve(workspace,'dimensions.txt'),'utf8'));}catch{return false;}},'terminal resize');
  const [rows,cols]=(await readFile(resolve(workspace,'dimensions.txt'),'utf8')).trim().split(' ').map(Number);
  assert(rows>5 && rows<40 && cols>20 && cols<100);
- await command('vi browser.txt');await new Promise(r=>setTimeout(r,400));
+ await command('vi -u NONE -i NONE browser.txt; printf done > editor.done');await new Promise(r=>setTimeout(r,400));
  await page.keyboard.press('i');await page.keyboard.type('FULLSCREEN_OK');await page.keyboard.press('Escape');await page.keyboard.type(':wq');await page.keyboard.press('Enter');
  await until(async()=>{try{return (await readFile(resolve(workspace,'browser.txt'),'utf8')).includes('FULLSCREEN_OK');}catch{return false;}},'full-screen editor');
+ await until(async()=>{try{return (await readFile(resolve(workspace,'editor.done'),'utf8'))==='done';}catch{return false;}},'editor exit');
  await command('exit 7');await see('Shell exited (7).');
  await page.reload();await see('No local connection available.');
  await connect(descriptor);await see('Connected.');await command('echo $$ > shell.pid');

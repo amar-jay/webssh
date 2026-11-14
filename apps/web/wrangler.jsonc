@@ -10,6 +10,9 @@
     "binding": "ASSETS",
     "directory": ".svelte-kit/cloudflare"
   },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://ssh.amarjay.com"
+  },
   "durable_objects": {
     "bindings": [
       {

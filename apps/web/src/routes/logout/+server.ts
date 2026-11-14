@@ -1,0 +1,31 @@
+import { redirect } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
+import { clearSessionCookie } from '#lib/auth/session.js';
+import { ownerStub } from '#lib/state/client.js';
+
+export const POST: RequestHandler = async ({ locals, platform }) => {
+  const env = platform?.env as AuthEnv | undefined;
+  if (env?.WEBSSH_STATE && locals.user) {
+    try {
+      const stub = ownerStub(env.WEBSSH_STATE as never, locals.user.ownerId);
+      await stub.revokeBrowserSession(locals.user.sessionId);
+    } catch {
+      return new Response('Logout unavailable; try again', { status: 503 });
+    }
+  }
+  let secure = true;
+  try {
+    if (env) secure = requireAuthEnv(env).publicOrigin.startsWith('https:');
+  } catch {
+    secure = true;
+  }
+  return new Response(null, {
+    status: 303,
+    headers: {
+      location: '/',
+      'set-cookie': clearSessionCookie(secure),
+      'cache-control': 'no-store'
+    }
+  });
+};

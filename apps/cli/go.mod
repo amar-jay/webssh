@@ -10,6 +10,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/tailscale/tailcat v0.7.0
+	github.com/urfave/cli/v3 v3.14.0
 	golang.org/x/sys v0.48.0
 	tailscale.com v1.103.0-pre.0.20260916030321-a2263542f260
 )
@@ -101,6 +102,7 @@ require (
 	github.com/tailscale/xnet v0.0.0-20240729143630-8497ac4dab2e // indirect
 	github.com/u-root/u-root v0.14.0 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
+
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect

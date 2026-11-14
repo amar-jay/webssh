@@ -2,14 +2,21 @@
   "name": "@webssh/state",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts"
+  },
   "scripts": {
     "dev": "wrangler dev --port 8787",
     "check": "tsc --noEmit",
     "build": "wrangler deploy --dry-run --outdir dist",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261114.1",
+    "esbuild": "^0.28.2",
+    "miniflare": "^4.20260730.0",
     "typescript": "^6.0.3",
     "wrangler": "^4.162.0"
   }

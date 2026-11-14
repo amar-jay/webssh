@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 
 func TestTailcatAgentEndToEnd(t *testing.T) {
 	dm := integration.RunDERPAndSTUN(t, logger.Discard, "127.0.0.1")
-	a, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh", Token: testToken, Region: dm.Regions[1]})
+	a, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: testToken, Region: dm.Regions[1]})
 	if err != nil {
 		t.Fatal(err)
 	}

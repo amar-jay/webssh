@@ -1,6 +1,6 @@
 # Agent protocol v1
 
-`internal/agent` owns an ephemeral Tailcat listener and connection-scoped PTY shells. `packages/protocol` contains the schema in `schema/terminal.proto`, generated Go/TypeScript protobuf codecs, length framing adapters, and shared binary fixtures. The browser route connects through the local-only `/dev/connect` handoff; production pairing remains to be implemented.
+`internal/agent` owns an ephemeral Tailcat listener and connection-scoped PTY shells. `packages/protocol` contains the schema in `schema/terminal.proto`, generated Go/TypeScript protobuf codecs, length framing adapters, and shared binary fixtures. Production attach uses a short-lived HMAC grant in the attach `token` field; the local-only `/dev/connect` handoff still uses a development per-run token. See [identity and pairing](identity-pairing.md).
 
 Run from the root:
 
@@ -25,11 +25,11 @@ The following JSON-like examples describe field values for readability; JSON is 
 | Server shell exit | `{"type":"exit","code":7}` (missing code means zero) |
 | Server failure | `{"type":"error","error":"unauthorized"}` |
 
-Authentication and initial dimensions are checked before any shell is launched. The token is compared with constant-time comparison. The terminal name defaults to xterm-256color and accepts at most 64 restricted printable characters. Dimensions must be 1–1000 columns and 1–500 rows. No client-chosen command, environment, shell, or workspace is accepted.
+Authentication and initial dimensions are checked before any shell is launched. Grant-shaped tokens (`v1.…`) are verified with HMAC-SHA256, expiry, agent binding, and a nonce replay cache; they never fall back to the development secret. Development tokens, when enabled, are compared with constant-time comparison. Invalid grants never start a PTY. The terminal name defaults to xterm-256color and accepts at most 64 restricted printable characters. Dimensions must be 1–1000 columns and 1–500 rows. No client-chosen command, environment, shell, or workspace is accepted.
 
 The handshake has a ten-second deadline. At most eight connections, including handshakes, are accepted by default. Server writes have ten-second deadlines and output flows directly from the PTY with bounded buffers. Quiet authenticated sessions have no read idle timeout. Normal exit drains PTY output before sending exit status; draining is bounded to one second when background processes retain the PTY. Signaled exits report code 128.
 
-Shells run with the agent user's privileges and inherited environment, with TERM and WEBSSH set by the agent. This is not a filesystem/process sandbox. Closing the connection, detach, shutdown, or invalid messages stops the PTY and shell/foreground process groups. The agent joins I/O goroutines and reaps the shell. Persistent tmux sessions, account pairing, per-user grants, and reattachment are not implemented.
+Shells run with the agent user's privileges and inherited environment, with TERM and WEBSSH set by the agent. This is not a filesystem/process sandbox. Closing the connection, detach, shutdown, or invalid messages stops the PTY and shell/foreground process groups. The agent joins I/O goroutines and reaps the shell. Persistent tmux sessions and reattachment are not implemented. Account pairing and HMAC grants are implemented; delivering Tailcat addresses through the control plane is milestone 3.
 
 Tests cover rejected authentication without process creation, workspace/resize/output/exit behavior, disconnect cleanup, malformed messages, Go/TypeScript fixtures, and an actual Tailcat connection through a local DERP/STUN test relay. Run Go tests with `GOMAXPROCS=2` and `-p 1` to bound resource use.
 

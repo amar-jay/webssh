@@ -22,14 +22,19 @@ import (
 type Options struct {
 	Workspace      string
 	Shell          string
-	Token          string // Empty generates a new per-run capability; never log requests.
-	Port           int    // Zero selects the protocol's default virtual port.
-	MaxConnections int    // Includes connections still authenticating; defaults to 8.
+	Token          string // Development per-run capability; empty when grants-only. Never log it.
+	Grants         *GrantVerifier
+	SessionID      string
+	CheckAccess    func(context.Context, string, string) error
+	AllowDevToken  bool // Local/dev attach using Token; production paired agents leave this false.
+	Port           int  // Zero selects the protocol's default virtual port.
+	MaxConnections int  // Includes connections still authenticating; defaults to 8.
 	DERPMapURL     string
 	Region         *tailcfg.DERPRegion // Optional explicit relay, useful for local integration.
 }
 
 type Info struct {
+	SessionID string `json:"sessionId,omitempty"`
 	Version   int    `json:"version"`
 	Address   string `json:"address"`
 	Port      int    `json:"port"`
@@ -37,7 +42,11 @@ type Info struct {
 	Workspace string `json:"workspace"`
 }
 
-type Agent struct{ opts Options }
+type Agent struct {
+	opts         Options
+	controllerMu sync.Mutex
+	controlled   bool
+}
 
 func New(opts Options) (*Agent, error) {
 	if !supportedPTY {
@@ -66,15 +75,26 @@ func New(opts Options) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opts.Token == "" {
+	if opts.Token != "" && !opts.AllowDevToken {
+		return nil, errors.New("development token must be explicitly enabled")
+	}
+	if opts.Grants != nil && (opts.SessionID == "" || opts.CheckAccess == nil) {
+		return nil, errors.New("paired agent requires session binding and online authorization")
+	}
+	if opts.AllowDevToken && opts.Token == "" {
 		var secret [32]byte
 		if _, err := rand.Read(secret[:]); err != nil {
 			return nil, err
 		}
 		opts.Token = base64.RawURLEncoding.EncodeToString(secret[:])
+		opts.AllowDevToken = true
 	}
-	if len(opts.Token) < 32 || len(opts.Token) > 128 {
-		return nil, errors.New("access token must contain 32 to 128 bytes")
+	if opts.AllowDevToken {
+		if len(opts.Token) < 32 || len(opts.Token) > 128 {
+			return nil, errors.New("access token must contain 32 to 128 bytes")
+		}
+	} else if opts.Grants == nil {
+		return nil, errors.New("paired grant verifier or development token is required")
 	}
 	if opts.Port == 0 {
 		opts.Port = protocol.DefaultPort
@@ -107,7 +127,7 @@ func (a *Agent) Run(ctx context.Context, ready func(Info) error) error {
 	}
 	defer listener.Close()
 	if ready != nil {
-		if err := ready(Info{Version: protocol.Version, Address: string(server.TailcatAddr()), Port: a.opts.Port, Token: a.opts.Token, Workspace: a.opts.Workspace}); err != nil {
+		if err := ready(Info{SessionID: a.opts.SessionID, Version: protocol.Version, Address: string(server.TailcatAddr()), Port: a.opts.Port, Token: a.opts.Token, Workspace: a.opts.Workspace}); err != nil {
 			return err
 		}
 	}

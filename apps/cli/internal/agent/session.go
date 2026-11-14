@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"context"
 	"crypto/subtle"
 	"errors"
 	"io"
 	"net"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,23 @@ func (w *writer) send(m protocol.Message) error {
 }
 func (w *writer) fail(code string) { _ = w.send(protocol.Message{Type: "error", Error: code}) }
 
+func (a *Agent) authorize(token string) bool {
+	// Grant-shaped tokens never fall back to the development per-run secret.
+	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
+		sessionID, err := a.opts.Grants.Verify(token, time.Now())
+		if err != nil || sessionID != a.opts.SessionID {
+			return false
+		}
+		check, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		return a.opts.CheckAccess != nil && a.opts.CheckAccess(check, sessionID, strings.Split(token, ".")[3]) == nil
+	}
+	if a.opts.AllowDevToken && a.opts.Token != "" {
+		return subtle.ConstantTimeCompare([]byte(token), []byte(a.opts.Token)) == 1
+	}
+	return false
+}
+
 func (a *Agent) handle(conn net.Conn) {
 	out := &writer{conn: conn}
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -42,10 +61,7 @@ func (a *Agent) handle(conn net.Conn) {
 		out.fail("unsupported_protocol")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(hello.Token), []byte(a.opts.Token)) != 1 {
-		out.fail("unauthorized")
-		return
-	}
+
 	if !protocol.ValidSize(hello.Cols, hello.Rows) || len(hello.Data) != 0 || hello.Error != "" || hello.Code != 0 {
 		out.fail("invalid_attach")
 		return
@@ -58,6 +74,54 @@ func (a *Agent) handle(conn net.Conn) {
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
+	if a.opts.Grants != nil {
+		a.controllerMu.Lock()
+		if a.controlled {
+			a.controllerMu.Unlock()
+			out.fail("session_busy")
+			return
+		}
+		a.controlled = true
+		a.controllerMu.Unlock()
+		defer func() { a.controllerMu.Lock(); a.controlled = false; a.controllerMu.Unlock() }()
+	}
+	if !a.authorize(hello.Token) {
+		out.fail("unauthorized")
+		return
+	}
+	// Each admitted grant nonce identifies this connection's lease. A busy
+	// attempt never consumes a grant or changes the active lease.
+	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
+		nonce := strings.Split(hello.Token, ".")[3]
+		accessCtx, accessCancel := context.WithCancel(context.Background())
+		stopped := make(chan struct{})
+		go func() {
+			defer close(stopped)
+			ticker := time.NewTicker(2 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-accessCtx.Done():
+					return
+				case <-ticker.C:
+					check, cancel := context.WithTimeout(accessCtx, 3*time.Second)
+					err := a.opts.CheckAccess(check, a.opts.SessionID, "check:"+nonce)
+					cancel()
+					if err != nil {
+						conn.Close()
+						return
+					}
+				}
+			}
+		}()
+		defer func() {
+			accessCancel()
+			<-stopped
+			release, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = a.opts.CheckAccess(release, a.opts.SessionID, "release:"+nonce)
+		}()
+	}
 	child, err := startProcess(a.opts, hello.Term, hello.Cols, hello.Rows)
 	if err != nil {
 		out.fail("shell_start_failed")

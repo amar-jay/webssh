@@ -1,11 +1,511 @@
 import { DurableObject } from 'cloudflare:workers';
+import { encodeGrant, randomCode, randomId, sha256, timingSafeEqual } from './crypto.js';
+import { applyMigrations } from './schema.js';
+import type {
+  AgentRecord,
+  GrantMintResult,
+  OwnerRecord,
+  PairingPollResult,
+  PairingStartResult,
+  TerminalSessionRecord
+} from './types.js';
 
 export interface Env {
   WEBSSH_STATE: DurableObjectNamespace<WebSSHState>;
 }
 
-// Add storage operations once ownership and the session schema are defined.
-export class WebSSHState extends DurableObject<Env> {}
+const PAIRING_TTL_MS = 10 * 60 * 1000;
+const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const GRANT_TTL_SEC = 60;
+const PAIRING_IP_LIMIT = 10;
+const PAIRING_GLOBAL_LIMIT = 200;
+const PAIRING_WINDOW_MS = 60 * 60 * 1000;
+
+export function ownerObjectId(ns: DurableObjectNamespace<WebSSHState>, ownerId: string) {
+  return ns.idFromName(`owner:${ownerId}`);
+}
+
+export function pairingObjectId(ns: DurableObjectNamespace<WebSSHState>) {
+  return ns.idFromName('pairing');
+}
+
+export class WebSSHState extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.ctx.blockConcurrencyWhile(async () => {
+      applyMigrations(this.ctx.storage.sql, (fn) => this.ctx.storage.transactionSync(fn));
+    });
+  }
+
+  // --- Owner profile & browser sessions ---
+
+  async ensureOwner(ownerId: string, githubLogin: string): Promise<OwnerRecord> {
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `INSERT INTO owners (owner_id, github_login, created_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(owner_id) DO UPDATE SET github_login = excluded.github_login`,
+      ownerId,
+      githubLogin,
+      now
+    );
+    return { ownerId, githubLogin, createdAt: now };
+  }
+
+  async createBrowserSession(ownerId: string): Promise<{ sessionId: string; expiresAt: number }> {
+    const sessionId = await randomId(24);
+    const now = Date.now();
+    const expiresAt = now + SESSION_TTL_MS;
+    this.ctx.storage.sql.exec(
+      `INSERT INTO browser_sessions (session_id, owner_id, expires_at, created_at, revoked_at)
+       VALUES (?, ?, ?, ?, NULL)`,
+      sessionId,
+      ownerId,
+      expiresAt,
+      now
+    );
+    await this.ctx.storage.setAlarm(Date.now()+60_000);
+    return { sessionId, expiresAt };
+  }
+
+  async getBrowserSession(sessionId: string): Promise<{ ownerId: string; expiresAt: number } | null> {
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT owner_id, expires_at, revoked_at FROM browser_sessions WHERE session_id = ?`,
+        sessionId
+      )
+      .next().value as { owner_id: string; expires_at: number; revoked_at: number | null } | undefined;
+    if (!row || row.revoked_at != null || row.expires_at <= Date.now()) return null;
+    return { ownerId: row.owner_id, expiresAt: row.expires_at };
+  }
+
+  async revokeBrowserSession(sessionId: string): Promise<void> {
+    this.ctx.storage.sql.exec(
+      `UPDATE browser_sessions SET revoked_at = ? WHERE session_id = ? AND revoked_at IS NULL`,
+      Date.now(),
+      sessionId
+    );
+  }
+
+  // --- Agents ---
+
+  async listAgents(ownerId: string): Promise<AgentRecord[]> {
+    const rows = this.ctx.storage.sql.exec(
+      `SELECT agent_id, owner_id, machine_name, revoked_at, created_at, last_seen_at
+       FROM agents WHERE owner_id = ? ORDER BY created_at DESC`,
+      ownerId
+    );
+    return [...rows].map((row) => ({
+      agentId: String(row.agent_id),
+      ownerId: String(row.owner_id),
+      machineName: String(row.machine_name),
+      revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
+      createdAt: Number(row.created_at),
+      lastSeenAt: row.last_seen_at == null ? null : Number(row.last_seen_at)
+    }));
+  }
+
+  async registerAgent(
+    ownerId: string,
+    machineName: string
+  ): Promise<{ agentId: string; agentToken: string; grantKey: string }> {
+    const agentId = await randomId(16);
+    const agentToken = await randomId(32);
+    const grantKey = await randomId(32);
+    const tokenHash = await sha256(agentToken);
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `INSERT INTO agents (agent_id, owner_id, machine_name, token_hash, grant_key, revoked_at, created_at, last_seen_at, token_expires_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, NULL, ?)`,
+      agentId,
+      ownerId,
+      machineName,
+      tokenHash,
+      grantKey,
+      now,
+      now + 30*24*60*60*1000
+    );
+    return { agentId, agentToken, grantKey };
+  }
+
+  async revokeAgent(ownerId: string, agentId: string): Promise<boolean> {
+    const result = this.ctx.storage.sql.exec(
+      `UPDATE agents SET revoked_at = ? WHERE agent_id = ? AND owner_id = ? AND revoked_at IS NULL`,
+      Date.now(),
+      agentId,
+      ownerId
+    );
+    return result.rowsWritten > 0;
+  }
+
+  async getAgentGrantKey(ownerId: string, agentId: string): Promise<string | null> {
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT grant_key, revoked_at, token_expires_at FROM agents WHERE agent_id = ? AND owner_id = ?`,
+        agentId,
+        ownerId
+      )
+      .next().value as { grant_key: string; revoked_at: number | null; token_expires_at: number | null } | undefined;
+    if (!row || row.revoked_at != null || Number(row.token_expires_at) <= Date.now()) return null;
+    return row.grant_key;
+  }
+
+  // --- Terminal sessions & grants ---
+
+  async createTerminalSession(
+    ownerId: string,
+    agentId: string,
+    workspaceLabel?: string
+  ): Promise<TerminalSessionRecord> {
+    const agent = this.ctx.storage.sql
+      .exec(
+        `SELECT agent_id FROM agents WHERE agent_id = ? AND owner_id = ? AND revoked_at IS NULL`,
+        agentId,
+        ownerId
+      )
+      .next().value;
+    if (!agent) throw new Error('agent_not_found');
+    const terminalSessionId = await randomId(16);
+    const now = Date.now();
+    this.ctx.storage.sql.exec(
+      `INSERT INTO terminal_sessions (terminal_session_id, owner_id, agent_id, workspace_label, status, created_at, ended_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, NULL)`,
+      terminalSessionId,
+      ownerId,
+      agentId,
+      workspaceLabel ?? null,
+      now
+    );
+    return {
+      terminalSessionId,
+      ownerId,
+      agentId,
+      workspaceLabel: workspaceLabel ?? null,
+      status: 'pending',
+      createdAt: now,
+      endedAt: null
+    };
+  }
+
+  async getTerminalSession(
+    ownerId: string,
+    terminalSessionId: string
+  ): Promise<TerminalSessionRecord | null> {
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT terminal_session_id, owner_id, agent_id, workspace_label, status, created_at, ended_at
+         FROM terminal_sessions WHERE terminal_session_id = ? AND owner_id = ?`,
+        terminalSessionId,
+        ownerId
+      )
+      .next().value as
+      | {
+          terminal_session_id: string;
+          owner_id: string;
+          agent_id: string;
+          workspace_label: string | null;
+          status: TerminalSessionRecord['status'];
+          created_at: number;
+          ended_at: number | null;
+        }
+      | undefined;
+    if (!row) return null;
+    return {
+      terminalSessionId: row.terminal_session_id,
+      ownerId: row.owner_id,
+      agentId: row.agent_id,
+      workspaceLabel: row.workspace_label,
+      status: row.status,
+      createdAt: row.created_at,
+      endedAt: row.ended_at
+    };
+  }
+
+  async mintGrant(ownerId: string, terminalSessionId: string, browserSessionId: string): Promise<GrantMintResult> {
+    const browser = await this.getBrowserSession(browserSessionId);
+    if (!browser || browser.ownerId !== ownerId) throw new Error('unauthorized');
+    const session = await this.getTerminalSession(ownerId, terminalSessionId);
+    if (!session || session.status === 'ended' || session.status === 'expired') {
+      throw new Error('session_unavailable');
+    }
+    const grantKey = await this.getAgentGrantKey(ownerId, session.agentId);
+    if (!grantKey) throw new Error('agent_revoked');
+    const nonce = await randomId(12);
+    const expUnix = Math.floor(Date.now() / 1000) + GRANT_TTL_SEC;
+    await this.ctx.storage.setAlarm(Date.now()+60_000);
+    const grant = await encodeGrant(session.agentId, grantKey, terminalSessionId, nonce, expUnix);
+    this.ctx.storage.sql.exec(
+      `INSERT INTO grant_nonces (nonce, terminal_session_id, agent_id, exp_unix, created_at, browser_session_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      nonce,
+      terminalSessionId,
+      session.agentId,
+      expUnix,
+      Date.now(),
+      browserSessionId
+    );
+    this.ctx.storage.sql.exec(
+      `UPDATE terminal_sessions SET status = 'active' WHERE terminal_session_id = ? AND status = 'pending'`,
+      terminalSessionId
+    );
+    return {
+      grant,
+      terminalSessionId,
+      agentId: session.agentId,
+      expUnix
+    };
+  }
+
+  async limitRequest(ip:string,kind:'poll'|'agent') {
+    this.enforcePairingRate(`request:${kind}:${ip}`,kind==='poll'?2000:5000);
+    this.enforcePairingRate(`request:${kind}:global`,100000);
+  }
+  async previewPairing(code: string, ownerId: string) {
+    this.enforcePairingRate(`approve:${ownerId}`, 30);
+    const row = this.ctx.storage.sql.exec(`SELECT machine_name, status, expires_at FROM pairing_attempts WHERE code = ?`, code.toUpperCase()).next().value;
+    if (!row || row.status !== 'pending' || Number(row.expires_at) <= Date.now()) throw new Error('pairing_unavailable');
+    return { machineName: String(row.machine_name) };
+  }
+
+  async agentCredential(ownerId:string, agentId:string, token:string, operation:'renew'|'revoke', replacementToken?:string, operationId?:string) {
+    const hash=await sha256(token);
+    const nextHash=replacementToken?await sha256(replacementToken):'';
+    return this.ctx.storage.transactionSync(()=>{
+      const agent=this.ctx.storage.sql.exec(`SELECT token_hash, revoked_at, token_expires_at, rotation_id, previous_token_hash FROM agents WHERE agent_id = ? AND owner_id = ?`,agentId,ownerId).next().value;
+      if (!agent || agent.revoked_at!=null || Number(agent.token_expires_at)<=Date.now()) throw new Error('unauthorized');
+      if (operation==='renew') {
+        if (!replacementToken || !/^[A-Za-z0-9_-]{43}$/.test(replacementToken) || !operationId || !/^[A-Za-z0-9_-]{43}$/.test(operationId)) throw new Error('invalid_request');
+        if (agent.rotation_id===operationId && timingSafeEqual(String(agent.previous_token_hash),hash) && timingSafeEqual(String(agent.token_hash),nextHash)) return {ok:true};
+        if (!timingSafeEqual(String(agent.token_hash),hash) || nextHash===hash) throw new Error('unauthorized');
+        this.ctx.storage.sql.exec(`UPDATE agents SET token_hash = ?, previous_token_hash = ?, rotation_id = ?, token_expires_at = ? WHERE agent_id = ? AND owner_id = ?`,nextHash,hash,operationId,Date.now()+30*86400000,agentId,ownerId);
+      } else {
+        if (!timingSafeEqual(String(agent.token_hash),hash)) throw new Error('unauthorized');
+        this.ctx.storage.sql.exec(`UPDATE agents SET revoked_at = ? WHERE agent_id = ? AND owner_id = ?`,Date.now(),agentId,ownerId);
+      }
+      return {ok:true};
+    });
+  }
+
+  async agentSession(ownerId: string, agentId: string, agentToken: string, sessionId?: string, nonce?: string) {
+    const hash = await sha256(agentToken);
+    return this.ctx.storage.transactionSync(() => {
+      const agent = this.ctx.storage.sql.exec(`SELECT token_hash, revoked_at, token_expires_at FROM agents WHERE agent_id = ? AND owner_id = ?`, agentId, ownerId).next().value;
+      if (!agent || agent.revoked_at != null || Number(agent.token_expires_at) <= Date.now() || !timingSafeEqual(String(agent.token_hash), hash)) throw new Error('unauthorized');
+      if (!sessionId) {
+        const id = crypto.randomUUID();
+        this.ctx.storage.sql.exec(`INSERT INTO terminal_sessions (terminal_session_id, owner_id, agent_id, status, created_at) VALUES (?, ?, ?, 'pending', ?)`, id, ownerId, agentId, Date.now());
+        return { sessionId: id };
+      }
+      const now=Date.now();
+      const session=this.ctx.storage.sql.exec(`SELECT status, active_nonce, lease_expires_at FROM terminal_sessions WHERE terminal_session_id = ? AND owner_id = ? AND agent_id = ?`,sessionId,ownerId,agentId).next().value;
+      if (!session || !['pending','active'].includes(String(session.status))) throw new Error('session_unavailable');
+      if (!nonce) return {sessionId}; // Agent/run status, never attachment authorization.
+      const checking=nonce.startsWith('check:');
+      const releasing=nonce.startsWith('release:');
+      const leaseNonce=(checking||releasing)?nonce.slice(nonce.indexOf(':')+1):nonce;
+      if (releasing) {
+        this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = NULL, lease_expires_at = NULL, last_seen_at = ? WHERE terminal_session_id = ? AND active_nonce = ?`,now,sessionId,leaseNonce);
+        return {sessionId};
+      }
+      if (checking) {
+        if (session.active_nonce!==leaseNonce || Number(session.lease_expires_at)<=now) throw new Error('unauthorized');
+      } else if (session.active_nonce && Number(session.lease_expires_at)>now) throw new Error('session_busy');
+      const grant=this.ctx.storage.sql.exec(`SELECT browser_session_id, exp_unix, consumed_at FROM grant_nonces WHERE nonce = ? AND terminal_session_id = ? AND agent_id = ?`,leaseNonce,sessionId,agentId).next().value;
+      if (!grant || (!checking && (grant.consumed_at!=null || Number(grant.exp_unix)<=Math.floor(now/1000))) || (checking && grant.consumed_at==null)) throw new Error('unauthorized');
+      const browser=this.ctx.storage.sql.exec(`SELECT expires_at, revoked_at FROM browser_sessions WHERE session_id = ? AND owner_id = ?`,grant.browser_session_id,ownerId).next().value;
+      if (!browser || browser.revoked_at!=null || Number(browser.expires_at)<=now) throw new Error('unauthorized');
+      if (!checking) this.ctx.storage.sql.exec(`UPDATE grant_nonces SET consumed_at = ? WHERE nonce = ?`,now,leaseNonce);
+      this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = ?, lease_expires_at = ?, last_seen_at = ?, status = 'active' WHERE terminal_session_id = ?`,leaseNonce,now+10000,now,sessionId);
+      return { sessionId };
+    });
+  }
+
+  // --- Pairing hub (object name: pairing) ---
+
+  async startPairing(machineName: string, clientIp: string): Promise<PairingStartResult> {
+    if (!machineName.trim() || /[\x00-\x1f\x7f]/.test(machineName) || machineName.length > 64) throw new Error('invalid_machine_name');
+    this.enforcePairingRate(`ip:${clientIp || 'unknown'}`, PAIRING_IP_LIMIT);
+    this.enforcePairingRate('global', PAIRING_GLOBAL_LIMIT);
+    const attemptId = await randomId(16);
+    const code = await randomCode();
+    const cliSecret = await randomId(24);
+    const now = Date.now();
+    const expiresAt = now + PAIRING_TTL_MS;
+    this.ctx.storage.sql.exec(
+      `INSERT INTO pairing_attempts (
+         attempt_id, code, code_hash, cli_secret_hash, machine_name, client_ip,
+         status, owner_id, agent_id, result_json, created_at, expires_at, completed_at
+       ) VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?, NULL)`,
+      attemptId,
+      code,
+      await sha256(code),
+      await sha256(cliSecret),
+      machineName.trim(),
+      clientIp || 'unknown',
+      now,
+      expiresAt
+    );
+    await this.ctx.storage.setAlarm(Date.now()+60_000);
+    return { attemptId, code, cliSecret, expiresAt };
+  }
+
+  async approvePairing(
+    code: string,
+    ownerId: string
+  ): Promise<{ attemptId: string; machineName: string }> {
+    this.enforcePairingRate(`approve:${ownerId}`, 30);
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT attempt_id, machine_name, status, expires_at FROM pairing_attempts WHERE code = ?`,
+        code.toUpperCase()
+      )
+      .next().value as
+      | { attempt_id: string; machine_name: string; status: string; expires_at: number }
+      | undefined;
+    if (!row) throw new Error('pairing_not_found');
+    if (row.expires_at <= Date.now()) {
+      this.ctx.storage.sql.exec(
+        `UPDATE pairing_attempts SET status = 'expired' WHERE attempt_id = ? AND status = 'pending'`,
+        row.attempt_id
+      );
+      throw new Error('pairing_expired');
+    }
+    if (row.status !== 'pending') throw new Error('pairing_unavailable');
+    const result = this.ctx.storage.sql.exec(
+      `UPDATE pairing_attempts
+       SET status = 'claimed', owner_id = ?
+       WHERE attempt_id = ? AND status = 'pending'`,
+      ownerId,
+      row.attempt_id
+    );
+    if (result.rowsWritten !== 1) throw new Error('pairing_unavailable');
+    return { attemptId: row.attempt_id, machineName: row.machine_name };
+  }
+
+  async completePairing(
+    attemptId: string,
+    ownerId: string,
+    agent: { agentId: string; agentToken: string; grantKey: string; machineName: string }
+  ): Promise<void> {
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT status, owner_id, expires_at FROM pairing_attempts WHERE attempt_id = ?`,
+        attemptId
+      )
+      .next().value as { status: string; owner_id: string | null; expires_at: number } | undefined;
+    if (!row || row.expires_at <= Date.now() || row.status !== 'claimed' || row.owner_id !== ownerId) {
+      throw new Error('pairing_unavailable');
+    }
+    const resultJson = JSON.stringify({
+      agentId: agent.agentId,
+      agentToken: agent.agentToken,
+      grantKey: agent.grantKey,
+      machineName: agent.machineName,
+      ownerId
+    });
+    this.ctx.storage.sql.exec(
+      `UPDATE pairing_attempts
+       SET status = 'completed', agent_id = ?, result_json = ?, completed_at = ?
+       WHERE attempt_id = ? AND status = 'claimed'`,
+      agent.agentId,
+      resultJson,
+      Date.now(),
+      attemptId
+    );
+  }
+
+  async abortPairing(attemptId: string, ownerId: string): Promise<void> {
+    this.ctx.storage.sql.exec(
+      `UPDATE pairing_attempts
+       SET status = 'expired'
+       WHERE attempt_id = ? AND owner_id = ? AND status = 'claimed'`,
+      attemptId,
+      ownerId
+    );
+  }
+
+  async pollPairing(code: string, cliSecret: string): Promise<PairingPollResult> {
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT status, expires_at, cli_secret_hash, result_json FROM pairing_attempts WHERE code = ?`,
+        code.toUpperCase()
+      )
+      .next().value as
+      | {
+          status: string;
+          expires_at: number;
+          cli_secret_hash: string;
+          result_json: string | null;
+        }
+      | undefined;
+    if (!row) return { status: 'expired' };
+    const secretHash = await sha256(cliSecret);
+    return this.ctx.storage.transactionSync(() => {
+    const current = this.ctx.storage.sql.exec(`SELECT status, expires_at, cli_secret_hash, result_json FROM pairing_attempts WHERE code = ?`, code.toUpperCase()).next().value as typeof row;
+    if (!current) return { status: 'expired' } as PairingPollResult;
+    Object.assign(row, current);
+    if (!timingSafeEqual(secretHash, row.cli_secret_hash)) throw new Error('pairing_unauthorized');
+    if (row.expires_at <= Date.now() || row.status === 'expired') {
+      this.ctx.storage.sql.exec(`UPDATE pairing_attempts SET status = 'expired', result_json = NULL WHERE code = ?`, code.toUpperCase());
+      return { status: 'expired' };
+    }
+    if (row.status === 'completed' && row.result_json) {
+      const parsed = JSON.parse(row.result_json) as {
+        agentId: string;
+        agentToken: string;
+        grantKey: string;
+        machineName: string;
+        ownerId: string;
+      };
+      // One-time delivery: clear secrets after a successful authenticated poll.
+      this.ctx.storage.sql.exec(
+        `UPDATE pairing_attempts SET result_json = NULL, status = 'delivered' WHERE code = ? AND status = 'completed'`,
+        code.toUpperCase()
+      );
+      return { status: 'completed', ...parsed };
+    }
+    if (row.status === 'delivered') return { status: 'expired' };
+    if (row.status === 'claimed') return { status: 'claimed' };
+    if (row.expires_at <= Date.now() || row.status === 'expired') return { status: 'expired' };
+    return { status: 'pending' };
+    });
+  }
+
+  async alarm(): Promise<void> {
+    const now = Date.now();
+    this.ctx.storage.sql.exec(`DELETE FROM grant_nonces WHERE exp_unix < ? AND nonce NOT IN (SELECT active_nonce FROM terminal_sessions WHERE active_nonce IS NOT NULL AND lease_expires_at > ?)`,Math.floor(now/1000),now);
+    this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = NULL, lease_expires_at = NULL WHERE lease_expires_at <= ?`,now);
+    this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'expired', ended_at = ? WHERE COALESCE(last_seen_at,created_at) < ? AND status IN ('pending','active')`,now,now-86400000);
+    this.ctx.storage.sql.exec(`DELETE FROM terminal_sessions WHERE ended_at < ?`,now-7*86400000);
+    this.ctx.storage.sql.exec(`DELETE FROM browser_sessions WHERE expires_at < ?`,now-86400000);
+    this.ctx.storage.sql.exec(`UPDATE pairing_attempts SET result_json = NULL, status = 'expired' WHERE expires_at <= ?`, now);
+    this.ctx.storage.sql.exec(`DELETE FROM pairing_attempts WHERE expires_at < ?`, now-24*60*60*1000);
+    this.ctx.storage.sql.exec(`DELETE FROM pairing_rate WHERE window_start < ?`, now-PAIRING_WINDOW_MS);
+    const pending = this.ctx.storage.sql.exec(`SELECT (SELECT COUNT(*) FROM pairing_attempts)+(SELECT COUNT(*) FROM browser_sessions)+(SELECT COUNT(*) FROM terminal_sessions)+(SELECT COUNT(*) FROM grant_nonces) AS n`).next().value;
+    if (Number(pending?.n)) await this.ctx.storage.setAlarm(now+60_000);
+  }
+
+  private enforcePairingRate(bucket: string, limit: number): void {
+    const now = Date.now();
+    const row = this.ctx.storage.sql
+      .exec(`SELECT count, window_start FROM pairing_rate WHERE bucket = ?`, bucket)
+      .next().value as { count: number; window_start: number } | undefined;
+    if (!row || now - row.window_start > PAIRING_WINDOW_MS) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO pairing_rate (bucket, count, window_start) VALUES (?, 1, ?)
+         ON CONFLICT(bucket) DO UPDATE SET count = 1, window_start = excluded.window_start`,
+        bucket,
+        now
+      );
+      return;
+    }
+    if (row.count >= limit) throw new Error('pairing_rate_limited');
+    this.ctx.storage.sql.exec(
+      `UPDATE pairing_rate SET count = count + 1 WHERE bucket = ?`,
+      bucket
+    );
+  }
+}
 
 export default {
   fetch() {

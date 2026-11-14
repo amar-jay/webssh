@@ -2,63 +2,71 @@
 package command
 
 import (
-	"errors"
-	"flag"
+	"context"
 	"fmt"
 	"os"
+
+	"github.com/urfave/cli/v3"
 
 	"github.com/amar-jay/webssh/apps/cli/internal/config"
 	configprompt "github.com/amar-jay/webssh/apps/cli/internal/prompt/config"
 )
 
-func Run(args []string) error {
-	if len(args) == 0 {
-		usage()
-		return nil
-	}
-	switch args[0] {
-	case "help", "-h", "--help":
-		usage()
-		return nil
-	case "config":
-		flags := flag.NewFlagSet("webssh config", flag.ContinueOnError)
-		path := flags.String("path", "", "configuration file (default: ~/.webssh/config.toml)")
-		if err := flags.Parse(args[1:]); err != nil {
-			if errors.Is(err, flag.ErrHelp) {
-				return nil
-			}
-			return err
-		}
-		if flags.NArg() != 0 {
-			return errors.New("config accepts no positional arguments")
-		}
-		if *path == "" {
-			var err error
-			*path, err = config.Path()
-			if err != nil {
-				return err
-			}
-		}
-		cfg, err := config.Load(*path)
-		if err != nil {
-			return err
-		}
-		_, statErr := os.Stat(*path)
-		saved, err := configprompt.Run(cfg, *path, statErr == nil)
-		if err != nil {
-			return err
-		}
-		if saved {
-			fmt.Fprintln(os.Stdout, "Configuration saved to", *path)
-		}
-		return nil
-	case "serve":
-		return serve(args[1:])
-	default:
-		return fmt.Errorf("unknown command %q (see webssh help)", args[0])
+func New() *cli.Command {
+	return &cli.Command{
+		Name:  "webssh",
+		Usage: "browser terminals for remote machines",
+		Commands: []*cli.Command{
+			configCommand(),
+			pairCommand(),
+			serveCommand(),
+		},
+		// Keep process lifetime in main/tests; urfave help still prints and returns.
+		ExitErrHandler: func(context.Context, *cli.Command, error) {},
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stdout, "WebSSH\n\nUsage: webssh <command>\n\n  serve <path>          Serve terminal sessions in a workspace directory\n  config [--path FILE]  Configure this machine\n  help                  Show help")
+func Run(args []string) error {
+	return New().Run(context.Background(), args)
+}
+
+func configCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "config",
+		Usage: "Configure this machine",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "path",
+				Usage: "configuration file (default: ~/.webssh/config.toml)",
+			},
+		},
+		Action: runConfig,
+	}
+}
+
+func runConfig(_ context.Context, cmd *cli.Command) error {
+	if cmd.Args().Len() != 0 {
+		return fmt.Errorf("config accepts no positional arguments")
+	}
+	path := cmd.String("path")
+	if path == "" {
+		var err error
+		path, err = config.Path()
+		if err != nil {
+			return err
+		}
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	_, statErr := os.Stat(path)
+	saved, err := configprompt.Run(cfg, path, statErr == nil)
+	if err != nil {
+		return err
+	}
+	if saved {
+		fmt.Fprintln(os.Stdout, "Configuration saved to", path)
+	}
+	return nil
 }
