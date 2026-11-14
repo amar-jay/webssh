@@ -34,3 +34,18 @@ For sessions that survive a closed tab or a dropped connection, the initial plan
 Cloudflare [introduced SQLite-backed Durable Objects in September 2024](https://blog.cloudflare.com/sqlite-in-durable-objects/) and [made them generally available in April 2025](https://developers.cloudflare.com/changelog/post/2025-04-07-sqlite-in-durable-objects-ga/). The interesting shift is that application code runs alongside its embedded database, avoiding a separate network round trip for each query. In October 2026, [the Deno team joined Cloudflare](https://blog.cloudflare.com/deno-joins-cloudflare/) to make Workers and Durable Objects easier to self-host, with plans to bring together Deno’s celld and Cloudflare’s workerd. SQLite-backed Durable Objects predate that acquisition, but both developments reflect an effort to bring compute, storage, and communication closer together.
 
 WebSSH is a practical way to explore this model: use Durable Objects and SQLite to coordinate and remember connections, while Tailcat carries terminal traffic and the remote machine owns the shell. The aim is to learn how these pieces behave together under the everyday demands of an interactive remote session.
+
+## Repository layout
+
+```text
+apps/
+  web/                 SvelteKit website and browser terminal
+  state/               Cloudflare Worker defining Durable Objects
+  cli/                 Go CLI and remote terminal agent
+packages/
+  protocol/            Browser–agent contract and shared fixtures
+docs/
+  architecture.md      Component boundaries and planned data flow
+```
+
+The three applications will deploy independently and live in this repository. These directories currently contain planning documentation; implementation and framework setup are still to come. See [the architecture notes](docs/architecture.md) for how they fit together.

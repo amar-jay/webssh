@@ -1,0 +1,21 @@
+# JavaScript dependencies and build output
+node_modules/
+.svelte-kit/
+.vite/
+.wrangler/
+coverage/
+dist/
+build/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Local binaries and editor files
+/apps/cli/bin/
+.DS_Store
+*.log
