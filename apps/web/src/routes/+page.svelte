@@ -1,51 +1,116 @@
 <script lang="ts">
+  import { Tabs } from "bits-ui";
+  import AppShell from "#lib/components/AppShell.svelte";
+  import CommandBlock from "#lib/components/CommandBlock.svelte";
   let { data } = $props();
 </script>
 
-<svelte:head>
-  <title>WebSSH</title>
-  <meta name="description" content="A browser terminal for your remote machines." />
-</svelte:head>
-
-<main>
-  <p class="label">WebSSH</p>
-  <h1>Your shell, in the browser.</h1>
-  <p>Private owner access via GitHub. Pair a machine, then open a terminal session.</p>
-  {#if data.error}
-    <p class="err">{data.error}</p>
-  {/if}
-  <nav>
-    {#if data.user}
-      <a href="/pair">Pair a machine</a>
-      <form method="POST" action="/logout"><button type="submit">Log out</button></form>
-    {:else}
-      <a class="primary" href="/login">Sign in with GitHub</a>
-    {/if}
-  </nav>
-</main>
-
-<style>
-  :global(body) {
-    margin: 0;
-    min-height: 100vh;
-    background: radial-gradient(1200px 600px at 20% -10%, #2a3358, #222436 55%);
-    color: #c8d3f5;
-    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  }
-  main { max-width: 40rem; margin: 0 auto; padding: 4rem 1.5rem; }
-  .label { font: 13px/1 "JetBrains Mono", ui-monospace, monospace; color: #828bb8; }
-  h1 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -0.04em; color: #c099ff; }
-  nav { display: flex; gap: 1rem; align-items: center; margin-top: 1.5rem; }
-  a, button {
-    font: inherit;
-    color: #1b1d2b;
-    background: #82aaff;
-    text-decoration: none;
-    border: 0;
-    border-radius: 4px;
-    padding: 0.65rem 0.9rem;
-    cursor: pointer;
-  }
-  a:not(.primary) { background: transparent; color: #86e1fc; padding-left: 0; }
-  .err { color: #ff757f; }
-</style>
+<svelte:head
+  ><title>WebSSH · Your machines, within reach</title><meta
+    name="description"
+    content="Pair your machines with WebSSH. A browser terminal for your own workspace."
+  /></svelte:head
+>
+<AppShell signedIn={!!data.user}>
+  <main class="overview">
+    <section class="intro">
+      <p class="eyebrow">
+        <span class="status-dot"></span> A DIRECT LINE TO YOUR WORKSPACE
+      </p>
+      <h1>Your machines.<br /><span>Within reach.</span></h1>
+      <p class="intro-copy">
+        A familiar shell, a little closer. Connect your own machine to your
+        account and get ready to take your workspace into the browser.
+      </p>
+      <div class="intro-actions">
+        {#if data.user}<a class="button primary" href="/pair"
+            >Pair a machine <span aria-hidden="true">→</span></a
+          >{:else}<a class="button primary" href="/login"
+            ><svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              ><path
+                d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.71 2.63 1.22 3.27.93.1-.72.39-1.22.71-1.5-2.5-.29-5.13-1.25-5.13-5.54 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.08 1.15a10.7 10.7 0 0 1 5.61 0c2.14-1.45 3.08-1.15 3.08-1.15.61 1.55.23 2.69.12 2.98.72.79 1.15 1.79 1.15 3.02 0 4.3-2.64 5.25-5.15 5.53.4.35.76 1.03.76 2.08v3.11c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"
+              /></svg
+            >Continue with GitHub <span aria-hidden="true">→</span></a
+          >{/if}<span class="muted small">Linux & macOS</span>
+      </div>
+      {#if data.error}<p class="notice error" role="alert">
+          {data.error === "auth_not_configured"
+            ? "Sign-in is unavailable right now. Please try again later."
+            : "Sign-in didn’t complete. Please try signing in again."}
+        </p>{/if}
+      <div class="feature-line">
+        <span>Private by default</span><span>GitHub sign-in</span><span
+          >Your own shell</span
+        >
+      </div>
+    </section>
+    <section class="setup-panel" aria-labelledby="setup-title">
+      <div class="panel-heading">
+        <span class="eyebrow">WORKSPACE SETUP</span><span class="pill"
+          >{data.user ? "Signed in" : "Get started"}</span
+        >
+      </div>
+      <h2 id="setup-title">Make the connection.</h2>
+      <p class="muted">Start on your machine. Finish right here.</p>
+      <Tabs.Root value="pair">
+        <Tabs.List class="tabs-list" aria-label="Setup steps"
+          ><Tabs.Trigger class="tab-trigger" value="pair"
+            >Pair machine</Tabs.Trigger
+          ><Tabs.Trigger class="tab-trigger" value="next"
+            >After pairing</Tabs.Trigger
+          ></Tabs.List
+        >
+        <Tabs.Content value="pair" class="tab-content"
+          ><p class="step-label">RUN IN YOUR TERMINAL</p>
+          <CommandBlock command="webssh pair" />
+          <p class="muted small">
+            The command prints a code and an approval link. Keep your terminal
+            open while you confirm.
+          </p>
+          <a class="text-link" href="/pair"
+            >Already have a code? Enter it here <span aria-hidden="true">→</span
+            ></a
+          ></Tabs.Content
+        >
+        <Tabs.Content value="next" class="tab-content"
+          ><p class="step-label">START YOUR WORKSPACE AGENT</p>
+          <CommandBlock command="webssh serve ." />
+          <p class="muted small">
+            Run this in the folder you want to work in. Keep the agent running
+            while you use your workspace.
+          </p>
+          <div class="inline-note">
+            Browser access to paired terminals is coming next.
+          </div></Tabs.Content
+        >
+      </Tabs.Root>
+      <div class="terminal-strip" aria-hidden="true">
+        <span>›_</span><span
+          >Less distance.<br /><strong>Same workspace.</strong></span
+        ><span class="terminal-cursor"></span>
+      </div>
+    </section>
+  </main>
+  <section class="workflow" aria-label="How pairing works">
+    <div>
+      <span class="workflow-number">01</span>
+      <h3>Sign in</h3>
+      <p>Use GitHub to create your private connection.</p>
+    </div>
+    <div>
+      <span class="workflow-number">02</span>
+      <h3>Pair your machine</h3>
+      <p>Match the code and approve a machine you trust.</p>
+    </div>
+    <div>
+      <span class="workflow-number">03</span>
+      <h3>Keep it ready <span class="pill">Up next</span></h3>
+      <p>Browser terminal access is the next step for WebSSH.</p>
+    </div>
+  </section>
+</AppShell>

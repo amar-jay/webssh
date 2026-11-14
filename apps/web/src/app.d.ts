@@ -1,3 +1,7 @@
+declare module 'cloudflare:workers' {
+  export const env: App.Platform['env'];
+}
+
 declare global {
   namespace App {
     interface Locals {

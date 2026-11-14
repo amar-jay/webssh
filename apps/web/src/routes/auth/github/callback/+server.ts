@@ -3,9 +3,10 @@ import type { RequestHandler } from './$types';
 import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
 import { MAX_AGE_SEC, sessionCookie, signSession } from '#lib/auth/session.js';
 import { ownerStub } from '#lib/state/client.js';
+import { runtimeEnv } from '#lib/cloudflare/runtime.js';
 
 export const GET: RequestHandler = async ({ url, platform, cookies }) => {
-  const env = platform?.env as AuthEnv | undefined;
+  const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
   if (!env?.WEBSSH_STATE) throw redirect(303, '/?error=auth_failed');
   let auth;
   try {

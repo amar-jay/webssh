@@ -1,115 +1,130 @@
 <script lang="ts">
+  import AppShell from "#lib/components/AppShell.svelte";
+  import CommandBlock from "#lib/components/CommandBlock.svelte";
   let { data } = $props();
-  let status = $state<'idle' | 'working' | 'done' | 'error'>('idle');
-  let message = $state('');
+  let status = $state<"idle" | "working" | "done" | "error">("idle");
+  let message = $state("");
 
   async function approve() {
-    if (!data.code || status === 'working' || status === 'done') return;
-    status = 'working';
-    message = '';
+    if (!data.code || status === "working" || status === "done") return;
+    status = "working";
+    message = "";
     try {
-      const res = await fetch('/api/pairing/approve', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code: data.code })
+      const res = await fetch("/api/pairing/approve", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: data.code }),
       });
-      const body = (await res.json()) as { error?: string; machineName?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        machineName?: string;
+      };
       if (!res.ok) {
-        status = 'error';
-        message = body.error || 'approval_failed';
+        status = "error";
+        message =
+          "Couldn’t approve this machine. Run webssh pair again for a fresh code.";
         return;
       }
-      status = 'done';
-      message = `Paired ${body.machineName ?? 'machine'}. You can close this tab.`;
+      status = "done";
+      message = `Paired ${body.machineName ?? "machine"}. You can close this tab.`;
     } catch {
-      status = 'error';
-      message = 'approval_failed';
+      status = "error";
+      message = "Couldn’t reach WebSSH. Check your connection and try again.";
     }
   }
 </script>
 
-<main class="pair">
-  <h1>Pair a machine</h1>
-  {#if data.error}
-    <p class="err">Invalid pairing code.</p>
-    <form method="GET">
-      <label>Code <input name="code" maxlength="8" autocomplete="off" /></label>
-      <button type="submit">Continue</button>
-    </form>
-  {:else if !data.code}
-    <p>Enter the 8-character code from <code>webssh pair</code>.</p>
-    <form method="GET">
-      <label>Code <input name="code" maxlength="8" autocomplete="off" /></label>
-      <button type="submit">Continue</button>
-    </form>
-  {:else}
-    <p>Pair <strong>{data.machineName}</strong> with your account? Code <code>{data.code}</code>?</p>
-    {#if status === 'done'}
-      <p class="ok">{message}</p>
-    {:else}
-      <button type="button" onclick={approve} disabled={status === 'working'}>
-        {status === 'working' ? 'Approving…' : 'Approve machine'}
-      </button>
-      {#if status === 'error'}
-        <p class="err">{message}</p>
+<svelte:head><title>Pair a machine · WebSSH</title></svelte:head>
+<AppShell signedIn={!!data.user}>
+  <main class="pair-layout">
+    <section class="pair-intro">
+      <p class="eyebrow">WORKSPACE SETUP / PAIRING</p>
+      <h1>A familiar machine.<br />A new connection.</h1>
+      <p>
+        Link a machine you trust to your account. Start in its terminal, then
+        confirm the code here.
+      </p>
+      <CommandBlock command="webssh pair" />
+      <div class="inline-note">
+        Only approve a pairing request you started yourself.
+      </div>
+    </section>
+    <section class="pair-card" aria-labelledby="pair-heading">
+      {#if status === "done"}
+        <div class="machine-icon success-icon" aria-hidden="true">✓</div>
+        <h2 id="pair-heading">You’re paired.</h2>
+        <p role="status">{message}</p>
+        <div class="inline-note">
+          Credentials are saved on your machine. Browser terminal access is
+          coming next.
+        </div>
+        <a class="button primary" href="/"
+          >Back to overview <span aria-hidden="true">→</span></a
+        >
+      {:else if !data.code || data.error}
+        <div class="machine-icon" aria-hidden="true">›_</div>
+        <h2 id="pair-heading">Enter your pairing code</h2>
+        <p class="muted">
+          Find the 8-character code in your machine’s terminal.
+        </p>
+        {#if data.error}<p class="notice error" role="alert">
+            {data.error === "invalid_code"
+              ? "Enter an 8-character code using letters and numbers."
+              : "This code is unavailable or has expired. Run webssh pair again and enter the new code."}
+          </p>{/if}
+        <form method="GET">
+          <label for="pairing-code">Pairing code</label>
+          <input
+            id="pairing-code"
+            name="code"
+            placeholder="XXXXXXXX"
+            minlength="8"
+            maxlength="8"
+            pattern="[A-Za-z0-9]{8}"
+            required
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            aria-describedby="code-hint"
+          />
+          <p id="code-hint" class="field-hint">
+            Keep webssh pair running while you continue.
+          </p>
+          <button class="button primary" type="submit"
+            >Continue <span aria-hidden="true">→</span></button
+          >
+        </form>
+      {:else}
+        <div class="machine-icon" aria-hidden="true">›_</div>
+        <h2 id="pair-heading">Is this your machine?</h2>
+        <p class="muted">
+          Check that this name and code match the request in your terminal.
+        </p>
+        <div class="machine-row">
+          <span>Machine</span><strong>{data.machineName}</strong>
+        </div>
+        <div class="machine-row">
+          <span>Access</span><strong>Your account only</strong>
+        </div>
+        <code class="pair-code">{data.code}</code>
+        <button
+          class="button primary"
+          type="button"
+          onclick={approve}
+          disabled={status === "working"}
+          >{status === "working" ? "Approving…" : "Approve machine"}
+          <span aria-hidden="true">→</span></button
+        >
+        <p class="field-hint" aria-live="polite">
+          {status === "working"
+            ? "Linking this machine to your account…"
+            : "Approve only if you recognize this request."}
+        </p>
+        {#if status === "error"}<p class="notice error" role="alert">
+            {message}
+          </p>{/if}
+        <a class="text-link" href="/pair">Use a different code</a>
       {/if}
-    {/if}
-  {/if}
-  <div class="hint"><a href="/">Home</a> · <form method="POST" action="/logout"><button type="submit">Log out</button></form></div>
-</main>
-
-<style>
-  :global(body) {
-    margin: 0;
-    min-height: 100vh;
-    background: radial-gradient(1200px 600px at 20% -10%, #2a3358, #222436 55%);
-    color: #c8d3f5;
-    font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  }
-  .pair {
-    max-width: 28rem;
-    margin: 0 auto;
-    padding: 4rem 1.5rem;
-  }
-  h1 {
-    font-size: 2.4rem;
-    letter-spacing: -0.03em;
-    margin: 0 0 1rem;
-    color: #c099ff;
-  }
-  code {
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-    color: #4fd6be;
-  }
-  form { display: grid; gap: 0.75rem; margin-top: 1rem; }
-  label { display: grid; gap: 0.35rem; color: #828bb8; }
-  input {
-    font: 16px/1.4 "JetBrains Mono", ui-monospace, monospace;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    border: 1px solid #444a73;
-    background: #1b1d2b;
-    color: #c8d3f5;
-    padding: 0.65rem 0.75rem;
-    border-radius: 4px;
-  }
-  button {
-    margin-top: 1rem;
-    border: 0;
-    border-radius: 4px;
-    padding: 0.7rem 1rem;
-    background: #82aaff;
-    color: #1b1d2b;
-    font-weight: 600;
-    cursor: pointer;
-    width: fit-content;
-  }
-  button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-  .ok { color: #c3e88d; }
-  .err { color: #ff757f; }
-  .hint { margin-top: 2rem; color: #828bb8; }
-  a { color: #86e1fc; }
-</style>
+    </section>
+  </main>
+</AppShell>

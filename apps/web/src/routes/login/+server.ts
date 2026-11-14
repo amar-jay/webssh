@@ -1,9 +1,10 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
+import { runtimeEnv } from '#lib/cloudflare/runtime.js';
 
 export const GET: RequestHandler = async ({ url, platform, cookies }) => {
-  const env = platform?.env as AuthEnv | undefined;
+  const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
   if (!env) throw redirect(303, '/');
   let auth;
   try {
@@ -28,5 +29,10 @@ export const GET: RequestHandler = async ({ url, platform, cookies }) => {
     secure: auth.publicOrigin.startsWith('https:'),
     maxAge: 600
   });
-  throw redirect(303, `https://github.com/login/oauth/authorize?${params}`);
+  return new Response(null, {
+    status: 303,
+    headers: {
+      location: `https://github.com/login/oauth/authorize?${params}`
+    }
+  });
 };

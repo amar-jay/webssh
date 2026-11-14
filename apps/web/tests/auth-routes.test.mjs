@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { resolve } from 'node:path';
 import { signSession } from '../src/lib/auth/session.ts';
-async function moduleAt(path) {
- const result=await build({entryPoints:[resolve(path)],bundle:true,platform:'node',format:'esm',write:false});
+async function moduleAt(path, plugins = []) {
+ const result=await build({entryPoints:[resolve(path)],bundle:true,platform:'node',format:'esm',write:false,plugins});
  return import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
 }
 const hook=await moduleAt('src/hooks.server.ts');
@@ -12,6 +12,27 @@ const grant=await moduleAt('src/routes/api/sessions/[session_id]/grant/+server.t
 const approve=await moduleAt('src/routes/api/pairing/approve/+server.ts');
 const secret='abcdefghijklmnopqrstuvwxyz012345';
 const env={GITHUB_CLIENT_ID:'test',GITHUB_CLIENT_SECRET:'test',SESSION_SECRET:secret,PUBLIC_ORIGIN:'https://webssh.example'};
+
+test('pairing page reads Worker bindings when platform is absent', async () => {
+ const pair = await moduleAt('src/routes/pair/+page.server.ts', [{
+  name: 'worker-bindings', setup(build) {
+   build.onResolve({filter: /^cloudflare:workers$/}, () => ({path: 'bindings', namespace: 'test'}));
+   build.onLoad({filter: /.*/, namespace: 'test'}, () => ({contents: `
+    export const env = { WEBSSH_STATE: {
+     idFromName: name => name,
+     get: name => ({ previewPairing: async (code, owner) => {
+      if (name !== 'pairing' || code !== 'ABCDEFGH' || owner !== '42') throw Error('unexpected request');
+      return { machineName: 'production-box' };
+     } })
+    } };
+   `}));
+  }
+ }]);
+ const result = await pair.load({url: new URL('https://webssh.example/pair?code=abcdefgh'), locals: {user: {ownerId: '42'}}});
+ assert.equal(result.error, null);
+ assert.equal(result.machineName, 'production-box');
+ assert.equal(result.code, 'ABCDEFGH');
+});
 
 test('hook authenticates against stored owner session and rejects foreign-origin mutations',async()=>{
  const token=await signSession({sid:'session',oid:'42',exp:Math.floor(Date.now()/1000)+60},secret);

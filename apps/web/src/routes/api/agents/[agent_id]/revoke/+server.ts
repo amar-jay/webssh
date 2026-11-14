@@ -1,10 +1,11 @@
 import type { RequestHandler } from './$types';
 import type { AuthEnv } from '#lib/auth/env.js';
 import { jsonError, noStore, ownerStub } from '#lib/state/client.js';
+import { runtimeEnv } from '#lib/cloudflare/runtime.js';
 
 export const POST: RequestHandler = async ({ params, platform, locals }) => {
   if (!locals.user) return jsonError('unauthorized', 401);
-  const env = platform?.env as AuthEnv | undefined;
+  const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
   if (!env?.WEBSSH_STATE) return jsonError('unavailable', 503);
   const agentId = params.agent_id?.trim() ?? '';
   if (!agentId) return jsonError('invalid_agent');
