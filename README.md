@@ -1,6 +1,6 @@
 # WebSSH
 
-WebSSH is a project to build a browser-based remote terminal: open a page, connect to a remote machine, and work in an interactive shell without exposing an SSH port to the public internet. It is also a chance to learn by building something useful—trying SvelteKit for the first time, exploring Tailcat’s browser networking, and putting SQLite-backed Cloudflare Durable Objects to work in a real application. The architecture below is the intended direction; the application scaffolding is in place, while remote terminal functionality is still to come.
+WebSSH is a project to build a browser-based remote terminal: open a page, connect to a remote machine, and work in an interactive shell without exposing an SSH port to the public internet. It is also a chance to learn by building something useful—trying SvelteKit for the first time, exploring Tailcat’s browser networking, and putting SQLite-backed Cloudflare Durable Objects to work in a real application. The architecture below is the intended direction; the project is not implemented yet.
 
 ## Connecting to remote machines
 
@@ -48,21 +48,4 @@ docs/
   architecture.md      Component boundaries and planned data flow
 ```
 
-The three applications will deploy independently and live in this repository. The TypeScript apps use pnpm workspaces. The Go CLI remains an independent Go module; `packages/protocol` currently holds language-neutral planning documentation.
-
-## Local development
-
-Use Node.js 22.12 or newer, pnpm 11.1.1, and Go 1.27.4 (the version recorded in the CLI module).
-
-```sh
-pnpm install
-pnpm dev         # Start the web app
-pnpm dev:state   # In another terminal: start the state Worker
-pnpm check       # Type-check TypeScript apps
-pnpm build       # Web production build + state Worker dry run
-pnpm cli:verify  # Verify Go dependency checksums
-```
-
-The web app currently displays a setup screen. Authentication, pairing, xterm rendering, Tailcat WASM, and remote sessions are not wired up yet. Cloudflare deployment remains explicit; see the app READMEs for commands.
-
-See [the architecture notes](docs/architecture.md) for component boundaries.
+The three applications will deploy independently and live in this repository. These directories currently contain planning documentation; implementation and framework setup are still to come. See [the architecture notes](docs/architecture.md) for how they fit together.
