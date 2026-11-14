@@ -7,3 +7,5 @@ The web application will bind to these objects directly. A public HTTP API is no
 This Worker will have its own deployment configuration and storage migrations. It does not run shells or preserve remote processes.
 
 This directory is a placeholder; the Worker has not been initialized yet.
+
+Cloudflare Worker exporting `WebSSHState`, with a SQLite-backed Durable Object migration. Its HTTP handler returns 404; the web application uses the external `WEBSSH_STATE` binding.

@@ -33,4 +33,4 @@ The SvelteKit server will authenticate and authorize access before using the sta
 
 The first technical milestone is validating xterm.js input/output and resize handling over Tailcat’s experimental browser/WASM transport. Authentication, pairing, object ownership, protocol encoding, and reconnection behavior need to be established during that prototype.
 
-These directories currently document responsibility boundaries. Framework initialization, dependencies, deployment configuration, and executable code will be added as the components are implemented.
+SvelteKit and the Cloudflare state Worker are initialized as pnpm workspaces, with separate Wrangler configurations. The state Worker exports a SQLite-backed Durable Object skeleton; the web Worker declares its external binding. The CLI has an independent Go module with Tailcat installed. Authentication, application storage operations, terminal transport, and protocol implementation remain to be built.

@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "webssh-state",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": false,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WEBSSH_STATE",
+        "class_name": "WebSSHState"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "WebSSHState"
+      ]
+    }
+  ]
+}
