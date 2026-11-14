@@ -1,49 +1,40 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Terminal } from '@xterm/xterm';
+  import { createTerminal, type SessionTerminal, type TerminalOptions } from '#lib/terminal/create-terminal.js';
   import '@xterm/xterm/css/xterm.css';
 
-  let { sessionId }: { sessionId: string } = $props();
+  let { sessionId, options = {}, onReady }: {
+    sessionId: string;
+    options?: TerminalOptions;
+    onReady?: (session: SessionTerminal) => void | (() => void);
+  } = $props();
   let container: HTMLDivElement;
 
   onMount(() => {
     let disposed = false;
-    let terminal: Terminal | undefined;
+    let session: SessionTerminal | undefined;
     let observer: ResizeObserver | undefined;
     let frame = 0;
+    let cleanupSession: (() => void) | void;
 
     async function initialize() {
-      // xterm depends on browser APIs, so load it only after mounting.
-      const [{ Terminal }, { FitAddon }] = await Promise.all([
-        import('@xterm/xterm'),
-        import('@xterm/addon-fit')
-      ]);
-      if (disposed) return;
-
-      terminal = new Terminal({
-        cursorBlink: true,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-        fontSize: 14,
-        theme: { background: '#000000', foreground: '#eeeeee' }
-      });
-      const fit = new FitAddon();
-      terminal.loadAddon(fit);
-      terminal.open(container);
-      fit.fit();
-      terminal.focus();
+      const controller = await createTerminal(container, options);
+      if (disposed) {
+        controller.dispose();
+        return;
+      }
+      session = controller;
+      controller.terminal.focus();
 
       const scheduleFit = () => {
         cancelAnimationFrame(frame);
         frame = requestAnimationFrame(() => {
-          if (!disposed) fit.fit();
+          if (!disposed) controller.fit();
         });
       };
       observer = new ResizeObserver(scheduleFit);
       observer.observe(container);
-      await document.fonts.ready;
-      if (!disposed) scheduleFit();
-      // Remote input/output and PTY resize events will be wired here once
-      // the session transport is implemented. Do not simulate a local shell.
+      cleanupSession = onReady?.(controller);
     }
 
     void initialize().catch((error: unknown) => {
@@ -54,7 +45,8 @@
       disposed = true;
       cancelAnimationFrame(frame);
       observer?.disconnect();
-      terminal?.dispose();
+      cleanupSession?.();
+      session?.dispose();
     };
   });
 </script>

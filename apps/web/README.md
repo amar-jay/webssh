@@ -4,4 +4,4 @@ The SvelteKit application lives here, configured for Cloudflare Workers. It serv
 
 Server-side routes will handle authenticated application requests and access the state Worker’s Durable Objects through a Cloudflare binding. Terminal traffic will travel through Tailcat.
 
-SvelteKit and TypeScript are initialized as the `@webssh/web` pnpm workspace. Authentication and remote session handling are still to come; the terminal currently starts blank.
+SvelteKit and TypeScript are initialized as the `@webssh/web` pnpm workspace. Authentication and remote session handling are still to come; the terminal currently uses browser-only mock session data with canned commands for UI development.
