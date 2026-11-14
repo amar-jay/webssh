@@ -22,9 +22,8 @@ func TestServeRequiresOneDirectory(t *testing.T) {
 		{[]string{""}, "usage: webssh serve <path>"},
 		{[]string{filepath.Join(dir, "missing")}, "open workspace directory"},
 		{[]string{file}, "is not a directory"},
-		{[]string{dir}, "not implemented yet (workspace: " + dir + ")"},
 	} {
-		err := serve(tc.args)
+		_, err := workspacePath(tc.args)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("serve(%q): got %v, want %q", tc.args, err, tc.want)
 		}
@@ -36,7 +35,7 @@ func TestServeResolvesRelativeDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := serve([]string{"."}); err == nil || !strings.Contains(err.Error(), "workspace: "+path) {
-		t.Fatalf("relative workspace was not resolved: %v", err)
+	if got, err := workspacePath([]string{"."}); err != nil || got != path {
+		t.Fatalf("relative workspace: got %q, %v; want %q", got, err, path)
 	}
 }

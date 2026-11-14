@@ -7,7 +7,7 @@ cmd/webssh/          Process entry point and exit status
 internal/command/   Argument parsing and application wiring
 internal/config/    Settings, defaults, validation, TOML persistence
 internal/prompt/config/ Inline Bubble Tea questionnaire
-internal/agent/     Reserved boundary for the headless remote agent
+internal/agent/     Tailcat listener, authentication, PTY and process lifecycle
 ```
 
 Run from `apps/cli`:
@@ -26,6 +26,10 @@ If a valid configuration file already exists, `webssh config` first asks **Use e
 
 By default the TOML file is stored at `~/.webssh/config.toml`, using `os.UserHomeDir()`. A missing file uses the hostname and `$SHELL` (falling back to `/bin/sh`) without writing anything. Saving validates the settings and atomically replaces the file using a temporary file with mode 0600. Unknown fields, malformed TOML, and unsupported schema versions are rejected rather than silently overwritten.
 
-Configuration is versioned with `version = 1`. The shell field is an executable name/path, not a shell command; no process is launched by the questionnaire. The stored values will be consumed when the remote agent is implemented.
+Configuration is versioned with `version = 1`. The shell field is an executable name/path, not a shell command; no process is launched by the questionnaire. The agent uses the configured shell executable.
 
-`webssh serve <path>` requires an existing workspace directory and resolves relative paths to absolute paths. This will be the initial working directory of the remote shell, not a filesystem sandbox. It currently returns an explicit not-implemented error after validating the path. The agent package contains only its responsibility boundary. Future PTY, shell/tmux lifecycle, and Tailcat transport code belong behind that boundary, independently of Bubble Tea. Configuration should not store networking credentials until their lifecycle and storage are designed.
+`webssh serve <path>` starts the agent in an existing workspace directory. It loads configuration without prompting, creates ephemeral Tailcat credentials and a random per-run application token, and prints the address, virtual port, and token. `--json` emits one connection record; flags must precede the path. `--config`, `--port`, `--derpmap-url`, and `--max-connections` customize startup. Ctrl+C or SIGTERM stops the agent and its sessions.
+
+The initial agent supports Linux/macOS. Each authenticated connection starts one interactive PTY shell in the workspace, forwards bytes and resize events, and reports exit status. Disconnect/detach kills the shell and foreground job groups and reaps the shell. Deliberately daemonized processes are outside this cleanup guarantee. The workspace is an initial directory, not a sandbox. Tmux persistence and browser pairing/connection wiring remain future work; the web route still uses mocks.
+
+See [agent protocol](agent-protocol.md) for framing, credentials, lifecycle, and limits. Use `GOMAXPROCS=2 go test -p 1 ./...` for bounded local checks.

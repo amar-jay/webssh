@@ -60,5 +60,5 @@ func Run(args []string) error {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stdout, "WebSSH\n\nUsage: webssh <command>\n\n  serve <path>          Serve a workspace directory (not implemented yet)\n  config [--path FILE]  Configure this machine\n  help                  Show help")
+	fmt.Fprintln(os.Stdout, "WebSSH\n\nUsage: webssh <command>\n\n  serve <path>          Serve terminal sessions in a workspace directory\n  config [--path FILE]  Configure this machine\n  help                  Show help")
 }

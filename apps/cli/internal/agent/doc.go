@@ -1,4 +1,4 @@
-// Package agent is reserved for the headless remote session lifecycle:
-// PTYs, shells, tmux attachment, and transport connections. It must not depend
-// on the command or TUI packages. Tailcat integration is not implemented yet.
+// Package agent serves authenticated terminal sessions over Tailcat. It owns
+// network, PTY, and child-process lifetimes independently of CLI prompts.
+// Sessions are connection-scoped; persistent tmux attachment is not implemented.
 package agent
