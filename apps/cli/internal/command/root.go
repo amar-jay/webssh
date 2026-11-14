@@ -43,7 +43,8 @@ func Run(args []string) error {
 		if err != nil {
 			return err
 		}
-		saved, err := configprompt.Run(cfg, *path)
+		_, statErr := os.Stat(*path)
+		saved, err := configprompt.Run(cfg, *path, statErr == nil)
 		if err != nil {
 			return err
 		}
@@ -52,12 +53,12 @@ func Run(args []string) error {
 		}
 		return nil
 	case "serve":
-		return errors.New("remote agent is not implemented yet")
+		return serve(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q (see webssh help)", args[0])
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stdout, "WebSSH\n\nUsage: webssh <command>\n\n  config [--path FILE]  Configure this machine\n  help                  Show help\n\nRemote serving is not implemented yet.")
+	fmt.Fprintln(os.Stdout, "WebSSH\n\nUsage: webssh <command>\n\n  serve <path>          Serve a workspace directory (not implemented yet)\n  config [--path FILE]  Configure this machine\n  help                  Show help")
 }

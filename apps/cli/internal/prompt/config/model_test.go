@@ -71,3 +71,29 @@ func TestInvalidAnswerStaysOnQuestion(t *testing.T) {
 		t.Fatal("invalid answer advanced")
 	}
 }
+
+func TestExistingConfigUsesWithoutWriting(t *testing.T) {
+	called := false
+	m := newModel(settings.Defaults(), "unused", func(settings.Config) error { called = true; return nil })
+	m.existing = true
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !next.(model).used || cmd == nil || called {
+		t.Fatal("use existing must quit without saving")
+	}
+}
+
+func TestResetStartsFreshWithoutWriting(t *testing.T) {
+	called := false
+	cfg := settings.Config{Version: 1, MachineName: "old-machine", Shell: "/old-shell"}
+	m := newModel(cfg, "unused", func(settings.Config) error { called = true; return nil })
+	m.existing = true
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
+	reset := next.(model)
+	if reset.existing || reset.focused != 0 || reset.answers() != settings.Defaults() || called {
+		t.Fatal("reset should only restart the questionnaire with defaults")
+	}
+	next, _ = reset.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if !next.(model).cancelled || called {
+		t.Fatal("cancelling reset must preserve the file")
+	}
+}

@@ -22,6 +22,8 @@ type model struct {
 	saving    bool
 	saved     bool
 	cancelled bool
+	existing  bool
+	used      bool
 	err       error
 }
 
@@ -57,6 +59,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		if m.saving {
+			return m, nil
+		}
+		if m.existing {
+			switch msg.String() {
+			case "enter", "y", "Y":
+				m.used = true
+				return m, tea.Quit
+			case "n", "N":
+				reset := newModel(settings.Defaults(), m.path, m.save)
+				return reset, reset.Init()
+			case "esc", "ctrl+c":
+				m.cancelled = true
+				return m, tea.Quit
+			}
 			return m, nil
 		}
 		switch msg.String() {
@@ -106,7 +122,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	if m.saving || m.focused >= len(m.inputs) {
+	if m.existing || m.saving || m.focused >= len(m.inputs) {
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -124,6 +140,20 @@ func (m model) answers() settings.Config {
 func (m model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(accentStyle.Bold(true).Render("WebSSH") + mutedStyle.Render(" / configure this machine") + "\n\n")
+	if m.existing {
+		fmt.Fprintf(&b, "%s\n  %s\n\n", successStyle.Render("✓ Existing configuration found"), mutedStyle.Render(m.path))
+		fmt.Fprintf(&b, "%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell))
+		switch {
+		case m.used:
+			b.WriteString(successStyle.Render("✓ Using existing configuration.") + "\n")
+		case m.cancelled:
+			b.WriteString(mutedStyle.Render("Configuration cancelled.") + "\n")
+		default:
+			b.WriteString(questionStyle.Render("? Use existing configuration?") + " " + accentStyle.Render("[Y/n]") + "\n")
+			b.WriteString(mutedStyle.Render("y use existing · n set up again · esc cancel") + "\n")
+		}
+		return tea.NewView(b.String())
+	}
 	labels := []string{"Machine name", "Shell executable"}
 	for i, label := range labels {
 		if i < m.focused {
@@ -155,8 +185,9 @@ func (m model) View() tea.View {
 	return tea.NewView(b.String())
 }
 
-func Run(cfg settings.Config, path string) (bool, error) {
+func Run(cfg settings.Config, path string, existing bool) (bool, error) {
 	initial := newModel(cfg, path, func(c settings.Config) error { return settings.Save(path, c) })
+	initial.existing = existing
 	result, err := tea.NewProgram(initial).Run()
 	if err != nil {
 		return false, fmt.Errorf("configuration prompts: %w", err)
