@@ -2,6 +2,11 @@
   import { onMount } from 'svelte';
   import { createTerminal, type SessionTerminal, type TerminalOptions } from '#lib/terminal/create-terminal.js';
   import '@xterm/xterm/css/xterm.css';
+  import '@fontsource/jetbrains-mono/400.css';
+  import '@fontsource/jetbrains-mono/700.css';
+  import '@fontsource/jetbrains-mono/400-italic.css';
+  import '@fontsource/jetbrains-mono/700-italic.css';
+  import '#lib/terminal/fonts.css';
   import { tokyoNightMoon } from '#lib/terminal/theme.js';
 
   let { sessionId, options = {}, onReady }: {

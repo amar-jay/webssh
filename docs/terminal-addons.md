@@ -22,10 +22,18 @@ The component accepts `onReady(controller)` for integration with the application
 
 - Attach requires a WebSocket carrying terminal bytes. WebSSH plans to use Tailcat streams, so input/output will be wired through the transport directly.
 - Program-status reports support to remote programs only when their status is visibly presented. This terminal has no status UI, so the addon is not loaded.
-- The published web-fonts addon currently requires an xterm prerelease newer than our stable xterm 6.0.0 dependency. The terminal uses system fonts and waits for `document.fonts.ready` before opening instead.
+- The published web-fonts addon currently requires an xterm prerelease newer than our stable xterm 6.0.0 dependency. Self-hosted JetBrains Mono and Nerd Font symbols are loaded via CSS instead; `create-terminal.ts` waits for those faces before opening.
 
 Remote transport is not implemented yet. The route attaches `mock-session.ts`, a browser-only adapter with sample output and canned commands. Type `help` for commands or `demo` for rendering samples. It supports command history, basic line editing, Ctrl+C, and Ctrl+L. It never executes host commands. Replace the route’s mock `onReady` handler with the Tailcat adapter when transport is ready.
 
 ## Theme
 
 The terminal uses the supplied Tokyo Night Moon palette in `theme.ts`, including all 16 ANSI colors, foreground, background, selection, and block cursor colors. The full-screen container shares the theme background. xterm has no separate theme properties for bold text color, link color, badges, or a cursor guide; those supplied values are retained as accent tokens but are not applied by the renderer.
+
+## Terminal fonts
+
+The web terminal self-hosts JetBrains Mono at regular/bold weights with italic variants through `@fontsource/jetbrains-mono`. Symbols Nerd Font Mono v3.4.0 supplies file/folder, prompt, and other Nerd Font glyphs as a fallback. Its upstream license is retained beside the asset. Standard system monospace fonts remain the final fallback.
+
+Fonts load explicitly before xterm opens and measures its cells, including a sample from the symbol font. Canvas rendering otherwise may measure a system fallback before the web fonts arrive. No external font service or locally installed font is required. Ligatures remain opt-in through the existing addon.
+
+Sources: [JetBrains Mono](https://www.jetbrains.com/lp/mono/), [Nerd Fonts symbols v3.4.0](https://github.com/ryanoasis/nerd-fonts/tree/v3.4.0/patched-fonts/NerdFontsSymbolsOnly).

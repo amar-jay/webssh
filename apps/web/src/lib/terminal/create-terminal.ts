@@ -31,7 +31,7 @@ export async function createTerminal(container: HTMLElement, options: TerminalOp
     allowProposedApi: true, // Unicode providers and image/serialize addons use proposed APIs.
     cursorBlink: true,
     screenReaderMode: options.screenReader ?? false,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    fontFamily: '"JetBrains Mono", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     fontSize: 14,
     theme: tokyoNightMoon
   });
@@ -71,6 +71,15 @@ export async function createTerminal(container: HTMLElement, options: TerminalOp
       terminal.loadAddon(new UnicodeGraphemesAddon());
     }
 
+    // Canvas text does not trigger web-font downloads automatically. Load the
+    // terminal faces explicitly before xterm measures its cell dimensions.
+    await Promise.allSettled([
+      document.fonts.load('14px "JetBrains Mono"'),
+      document.fonts.load('700 14px "JetBrains Mono"'),
+      document.fonts.load('italic 14px "JetBrains Mono"'),
+      document.fonts.load('700 italic 14px "JetBrains Mono"'),
+      document.fonts.load('14px "Symbols Nerd Font Mono"', '\uf07b\ue5ff\uf120')
+    ]);
     await document.fonts.ready;
     terminal.open(container);
     if (options.ligatures) {
