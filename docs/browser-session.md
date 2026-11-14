@@ -1,6 +1,6 @@
 # Browser session adapter
 
-`apps/web/src/lib/terminal/remote-session.ts` composes the owned Tailcat transport, Protobuf framing, and the existing terminal controller. It accepts connection credentials in memory; pairing and session-ID lookup remain the caller's responsibility. The existing route still uses mocks until a credential source is wired in.
+`apps/web/src/lib/terminal/remote-session.ts` composes the owned Tailcat transport, Protobuf framing, and the existing terminal controller. It accepts connection credentials in memory; pairing and session-ID lookup remain the caller's responsibility. In local development, `/dev/connect` accepts the CLI JSON record and navigates to `/s/<opaque_id>` using a single-use in-memory handoff. Reloading or a new tab cannot recover the credential. The connection form is restricted to loopback hosts and returns 404 in production. Mock sessions require the explicit mock button; unavailable/failed real sessions never fall back to mocks.
 
 ```ts
 const session = attachRemoteSession(controller, {
@@ -28,3 +28,20 @@ An agent handshake must complete within ten seconds after dialing. The transport
 Disposal aborts dialing/reads, closes owned resources (including late results), removes listeners, and releases pending output waits. The shared WASM runtime and caller-owned terminal remain outside the adapter's lifetime. Status callbacks receive fixed state names and exit codes, never credentials or raw remote errors. The adapter deliberately does not draw UI; the caller controls terminal status presentation.
 
 Tests use fake transport endpoints with real Protobuf frames to verify handshake, bytes, resize, backpressure, timeout and cleanup. Real browser-to-relay testing is still the next integration gate.
+
+## Run the local terminal
+
+1. Run `pnpm wasm:build` after changes to Go transport code (or on a clean checkout).
+2. Run `pnpm dev` and open `http://localhost:5173/dev/connect`.
+3. In another terminal, run `GOMAXPROCS=2 go run -p 1 ./apps/cli/cmd/webssh serve --json <workspace>`.
+4. Paste the record into the form and choose Connect. Keep that record private. Only the random handoff ID enters the session URL.
+
+The route shows connecting, ready, failure, process exit and disconnect messages within xterm. Real-session disposal closes its stream/client before the terminal is destroyed. The app exposes no production credential lookup endpoint. Development screen-reader mode also makes rendered terminal content available to accessibility tools and the integration test.
+
+## Real browser integration test
+
+With dependencies and WASM assets installed, run `pnpm test:browser`. It launches a local WebSocket-capable DERP/STUN relay, a native agent, a temporary Vite server and headless Chromium. Set `CHROME_BIN` to your Chromium executable if it is not `/snap/bin/chromium`. The test requires `vi` and `stty` on the agent host.
+
+The test verifies invalid credentials, Unicode output, multiline paste, Ctrl+C, PTY resize, editing a file with vi, exit code, empty handoff after reload, route disposal with shell reaping, and explicit mock mode. Credentials are generated per run and held in a temporary file with mode 0600; they are not command arguments, committed fixtures, browser storage, screenshots or traces. The test closes browser/server processes and the native agent on completion. Go uses two threads and one package at a time.
+
+WASM delivery accepts both raw gzip bytes from static hosts and browser-decoded responses from hosts that set Content-Encoding. The loader checks the gzip magic bytes to avoid double decompression.

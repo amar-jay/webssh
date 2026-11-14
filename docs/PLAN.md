@@ -12,8 +12,8 @@ Keep the session route entirely terminal-based, using the existing Tokyo Night M
 
 | Component | Implemented | Essential gap |
 | --- | --- | --- |
-| Web terminal | xterm, addons, theme, terminal-only route, WASM loading | Route still attaches mock data |
-| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership | Real browser/relay/agent interoperability has not been validated |
+| Web terminal | xterm, addons, theme, terminal-only route, WASM loading | Local development handoff works; production pairing remains |
+| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership | Local browser/relay/agent acceptance passes; production delivery remains |
 | Agent | Tailcat listener, token authentication, workspace PTY, resize/output/exit, cleanup | Sessions die on disconnect; no pairing or persistence |
 | Protocol | Protobuf schema, generated Go/TS codecs, framing and shared fixtures | Session identities, reattachment and grant semantics |
 | CLI | Inline configuration, TOML settings, functional serve command | Pair/register flow and browser session URL |
@@ -137,4 +137,4 @@ Before calling the essential release complete, perform this single end-to-end jo
 
 Proceed milestone by milestone with reviewable commits and update this plan as decisions settle. Keep READMEs protected. Run Go checks with `GOMAXPROCS=2` and `-p 1`; use race detection only with explicit limits and a reason. Use focused tests during implementation and reserve full builds/browser runs for integration changes and release gates.
 
-**Next implementation task:** milestone 1's real browser session adapter and local browser–DERP–agent test. Authentication provider, grant verification strategy, relay hosting and tmux persistence policy are subsequent explicit decisions, not assumptions already implemented in the repository.
+**Milestone 1 completed locally:** development-only credential handoff, real terminal route, explicit mocks and browser–DERP–agent acceptance test are implemented. See [browser session](browser-session.md). **Next implementation task:** milestone 2 identity and pairing design. Authentication provider, grant verification strategy, relay hosting and tmux persistence policy are subsequent explicit decisions, not assumptions already implemented in the repository.

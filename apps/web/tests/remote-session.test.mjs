@@ -22,7 +22,7 @@ function setup({ holdOutput = false } = {}) {
     if(waiter) { const resolve=waiter;waiter=undefined;resolve(chunk); } else chunks.push(chunk);
   }
   return {terminal, transport:{async createClient(){return client;}},sent,output,handlers,push,
-    reads:()=>reads,closed:()=>closed,consume:()=>consumed?.()};
+    end:()=>{if(waiter){const resolve=waiter;waiter=undefined;resolve(null);}else chunks.push(null);},reads:()=>reads,closed:()=>closed,consume:()=>consumed?.()};
 }
 const credentials = { address:'private-address', token:'a'.repeat(43) };
 
@@ -32,7 +32,7 @@ test('handshakes before input, forwards Unicode/binary bytes, coalesces resize, 
   await tick();assert.equal(h.sent[0].type,'attach');assert.equal(h.handlers.data,undefined);
   h.push({type:'ready',version:1});await tick();
   h.handlers.data('İ\r');h.handlers.binary('\xff');
-  h.handlers.resize({cols:90,rows:30});h.handlers.resize({cols:100,rows:40});await tick();
+  h.handlers.resize({cols:90,rows:30});h.handlers.resize({cols:100,rows:40,colsChanged:true,rowsChanged:true});await tick();
   assert.deepEqual(h.sent.filter(x=>x.type==='input').map(x=>Array.from(x.data)),[Array.from(new TextEncoder().encode('İ\r')),[255]]);
   assert.equal(h.sent.filter(x=>x.type==='resize').length,1);
   h.push({type:'output',data:new Uint8Array([0,255,27])},{type:'exit',code:7});
@@ -64,4 +64,15 @@ test('a late client is closed after disposal', async () => {
 test('missing handshake times out', async () => {
   const h=setup();const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport,handshakeTimeoutMs:10});
   assert.deepEqual(await session.done,{state:'failed'});assert(h.closed());
+});
+
+
+test('large input is split in order and EOF is distinct from shell exit', async () => {
+  const h=setup();const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport});
+  await tick();h.push({type:'ready',version:1});await tick();
+  h.handlers.data('x'.repeat(70000));await tick();
+  const frames=h.sent.filter(message=>message.type==='input');
+  assert.deepEqual(frames.map(message=>message.data.length),[65536,4464]);
+  assert(frames.every(message=>message.data.every(byte=>byte===120)));
+  h.end();assert.deepEqual(await session.done,{state:'disconnected'});
 });

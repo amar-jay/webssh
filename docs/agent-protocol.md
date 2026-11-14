@@ -1,6 +1,6 @@
 # Agent protocol v1
 
-`internal/agent` owns an ephemeral Tailcat listener and connection-scoped PTY shells. `packages/protocol` contains the schema in `schema/terminal.proto`, generated Go/TypeScript protobuf codecs, length framing adapters, and shared binary fixtures. The browser route is not connected to the agent yet.
+`internal/agent` owns an ephemeral Tailcat listener and connection-scoped PTY shells. `packages/protocol` contains the schema in `schema/terminal.proto`, generated Go/TypeScript protobuf codecs, length framing adapters, and shared binary fixtures. The browser route connects through the local-only `/dev/connect` handoff; production pairing remains to be implemented.
 
 Run from the root:
 

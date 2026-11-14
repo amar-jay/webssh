@@ -2,7 +2,7 @@
 
 `packages/transport` owns our Go/WASM entrypoint and TypeScript API. It imports Tailcat `v0.7.0`; it does not compile or expose the upstream demo bridge. Native code can reuse the Go client lifecycle package without importing CLI code.
 
-This is a transport foundation. The agent server, pairing, authorization grants, terminal framing, PTYs, tmux, and real terminal session integration remain to be implemented. The `/s/<session_id>` route loads the shared WASM runtime before attaching its mock session, displays loading/ready/error messages inside xterm, and accepts `r` to retry a failed load. Leaving the route during loading prevents a late mock attachment. See [Understanding Tailcat](UNDERSTANDING_TAILCAT.md) for upstream behavior and constraints, and [workspaces](workspaces.md) for repository commands.
+This is a transport foundation. The agent server, pairing, authorization grants, terminal framing, PTYs, tmux, and real terminal session integration remain to be implemented. The `/s/<session_id>` route uses the real browser session adapter with a single-use development handoff from `/dev/connect`. Mock sessions require an explicit choice on that development page. See [browser session](browser-session.md).
 
 ## Build and use
 

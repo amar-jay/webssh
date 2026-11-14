@@ -66,7 +66,7 @@ export function attachRemoteSession(
     });
   }
   // Register immediately so changes while dialing are included in the attach.
-  listeners.push(terminal.onResize(size => { resize = size; flushResize(); }));
+  listeners.push(terminal.onResize(size => { resize = { cols: size.cols, rows: size.rows }; flushResize(); }));
   options.signal?.addEventListener('abort', dispose, { once: true });
   if (options.signal?.aborted) dispose();
 

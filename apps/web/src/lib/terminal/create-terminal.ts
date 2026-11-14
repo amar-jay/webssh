@@ -4,6 +4,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import { tokyoNightMoon } from './theme.js';
 
 export interface TerminalOptions {
+  screenReader?: boolean;
   unicode?: '11' | 'graphemes';
   // Local font discovery may require browser permission. Enable deliberately.
   ligatures?: boolean;
@@ -29,6 +30,7 @@ export async function createTerminal(container: HTMLElement, options: TerminalOp
   const terminal: Terminal = new Terminal({
     allowProposedApi: true, // Unicode providers and image/serialize addons use proposed APIs.
     cursorBlink: true,
+    screenReaderMode: options.screenReader ?? false,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     fontSize: 14,
     theme: tokyoNightMoon

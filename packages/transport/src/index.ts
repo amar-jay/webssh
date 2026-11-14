@@ -190,7 +190,13 @@ async function boot(): Promise<Transport> {
   const response = await fetch('/tailcat/webssh.wasm.gz');
   if (!response.ok) throw new Error(`Could not load WebSSH WASM (${response.status})`);
   // arrayBuffer works on hosts that do not set the WASM streaming MIME type.
-  const { instance } = await WebAssembly.instantiate(await new Response(response.body!.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer(), go.importObject);
+  const downloaded = new Uint8Array(await response.arrayBuffer());
+  // Some hosts (including the dev server) set Content-Encoding and the browser
+  // already decompresses. Static hosts may serve the raw .gz bytes instead.
+  const binary = downloaded[0] === 0x1f && downloaded[1] === 0x8b
+    ? await new Response(new Blob([downloaded]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+    : downloaded.buffer;
+  const { instance } = await WebAssembly.instantiate(binary, go.importObject);
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => { cleanup(); reject(new Error('WebSSH WASM readiness timed out')); }, 30_000);
     const cleanup = () => { clearTimeout(timer); globalThis.onWebSSHTailcatReady = undefined; };
