@@ -1,0 +1,17 @@
+syntax = "proto3";
+package webssh.protocol.v1;
+option go_package = "github.com/amar-jay/webssh/packages/protocol/gen;protocolpb";
+
+// One envelope per length-prefixed TCP frame. The agent validates which fields
+// are legal for each type and direction. Never reuse field numbers.
+message TerminalMessage {
+  string type = 1; // attach, ready, input, output, resize, detach, exit, error
+  uint32 version = 2;
+  string token = 3;
+  uint32 cols = 4;
+  uint32 rows = 5;
+  string term = 6;
+  bytes data = 7;
+  int32 code = 8;
+  string error = 9;
+}

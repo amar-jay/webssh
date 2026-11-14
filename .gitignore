@@ -22,3 +22,5 @@ build/
 
 # Generated Go/WASM assets (pnpm wasm:build)
 /apps/web/static/tailcat/
+
+/packages/protocol/bin/

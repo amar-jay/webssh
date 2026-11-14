@@ -1,0 +1,69 @@
+[
+  {
+    "name": "attach",
+    "message": {
+      "type": "attach",
+      "version": 1,
+      "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "cols": 80,
+      "rows": 24,
+      "term": "xterm-256color"
+    },
+    "hex": "000000400a0661747461636810011a20616161616161616161616161616161616161616161616161616161616161616120502818320e787465726d2d323536636f6c6f72"
+  },
+  {
+    "name": "ready",
+    "message": {
+      "type": "ready",
+      "version": 1
+    },
+    "hex": "000000090a0572656164791001"
+  },
+  {
+    "name": "bytes",
+    "message": {
+      "type": "output",
+      "data": "AP8b"
+    },
+    "hex": "0000000d0a066f75747075743a0300ff1b"
+  },
+  {
+    "name": "resize",
+    "message": {
+      "type": "resize",
+      "cols": 120,
+      "rows": 40
+    },
+    "hex": "0000000c0a06726573697a6520782828"
+  },
+  {
+    "name": "success",
+    "message": {
+      "type": "exit"
+    },
+    "hex": "000000060a0465786974"
+  },
+  {
+    "name": "failure",
+    "message": {
+      "type": "exit",
+      "code": 7
+    },
+    "hex": "000000080a04657869744007"
+  },
+  {
+    "name": "detach",
+    "message": {
+      "type": "detach"
+    },
+    "hex": "000000080a06646574616368"
+  },
+  {
+    "name": "denied",
+    "message": {
+      "type": "error",
+      "error": "unauthorized"
+    },
+    "hex": "000000150a056572726f724a0c756e617574686f72697a6564"
+  }
+]
