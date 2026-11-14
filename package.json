@@ -14,7 +14,7 @@
     "preview": "pnpm --filter @webssh/web preview",
     "cli:verify": "cd apps/cli && go mod verify",
     "wasm:build": "pnpm --filter @webssh/transport build:wasm",
-    "go:test": "go test ./apps/cli/... ./packages/transport/...",
-    "go:vet": "go vet ./apps/cli/... ./packages/transport/..."
+    "go:test": "GOMAXPROCS=2 go test -p 1 ./apps/cli/... ./packages/transport/... ./packages/protocol/...",
+    "go:vet": "GOMAXPROCS=2 go vet -p 1 ./apps/cli/... ./packages/transport/... ./packages/protocol/..."
   }
 }

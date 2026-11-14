@@ -10,3 +10,8 @@ NEVER OVERWRITE THE README.
 - Do not replace, truncate, delete, regenerate, or reformat README files.
 - Preserve README files when running scaffolders, generators, installers, or setup commands. Back them up before running tools that might overwrite them, and restore their exact contents afterward.
 - Put setup notes and implementation documentation in other files under `docs/` unless the user explicitly requests a README update.
+
+## Go resource limits
+
+- Run Go checks with `GOMAXPROCS=2` and `-p 1`.
+- Never run `-race` without explicit thread and package concurrency limits; prefer ordinary tests unless race detection is needed. Unbounded race builds can crash the user’s machine.
