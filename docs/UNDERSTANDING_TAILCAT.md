@@ -227,6 +227,8 @@ This supports the upstream send/receive demo, but WebSSH's initial direction sho
 
 ## WASM choice, build, and hosting
 
+**WebSSH implementation update:** we now own a separate bridge in `packages/transport`, documented in [WASM transport](wasm-transport.md). It imports the pinned Go library. The following describes the upstream option evaluated during research; the recommendation below has been superseded by that implementation choice.
+
 **Recommendation for the first milestone:** build the existing upstream `web` package from the same pinned source as the native agent and provide a small WebSSH TypeScript adapter. We can replace the exported bridge later without replacing WireGuard, DERP, or netstack.
 
 A custom Go/WASM entrypoint becomes justified if we need cancellable dialing, pre-connect key enrollment, shared clients across streams, path diagnostics, stricter lifecycle management, or terminal-specific operations in Go. It should import Tailcat as a dependency rather than fork the transport. Go's `internal` rules prevent our module from importing Tailcat's `internal/wasmbuild` or `internal/buildtags` directly.

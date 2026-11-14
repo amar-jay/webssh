@@ -1,0 +1,18 @@
+{
+  "name": "@webssh/transport",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build:wasm": "node ../../scripts/build-wasm.mjs",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "check": "tsc --noEmit",
+    "test:wasm": "node tests/wasm-smoke.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

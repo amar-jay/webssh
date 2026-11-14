@@ -12,6 +12,9 @@
     "check": "pnpm -r --if-present check",
     "build": "pnpm -r --if-present build",
     "preview": "pnpm --filter @webssh/web preview",
-    "cli:verify": "cd apps/cli && go mod verify"
+    "cli:verify": "cd apps/cli && go mod verify",
+    "wasm:build": "pnpm --filter @webssh/transport build:wasm",
+    "go:test": "go test ./apps/cli/... ./packages/transport/...",
+    "go:vet": "go vet ./apps/cli/... ./packages/transport/..."
   }
 }
