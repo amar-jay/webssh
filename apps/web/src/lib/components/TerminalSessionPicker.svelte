@@ -57,40 +57,41 @@
 
 <svelte:window bind:innerHeight={height} onkeydown={keydown} />
 <TerminalPanel label="sessions">
-  <div class="mb-3 flex items-start gap-3">
-    <span class="w-4 shrink-0 text-canvas" aria-hidden="true">&gt;</span>
-    <div class="min-w-0 flex-1">
+  <div class="mb-2 flex items-center gap-2">
+    <span class="w-3 shrink-0 text-accent" aria-hidden="true">&gt;</span>
+    <div class="flex min-w-0 flex-1 items-baseline gap-3">
       <h1
         bind:this={heading}
         tabindex="-1"
-        class="m-0 text-sm font-medium outline-none"
+        class="m-0 shrink-0 text-sm font-medium outline-none"
       >
         Choose a session
       </h1>
       {#if view.workspace}<p
-          class="mt-1.5 mb-0 text-sm text-canvas/75 wrap-anywhere"
+          class="m-0 min-w-0 truncate text-sm text-secondary"
+          title={view.workspace}
         >
           {view.workspace}
         </p>{/if}
     </div>
   </div>
   <div aria-busy={view.loading}>
-    {#if start}<p class="my-2 pl-7 text-xs text-canvas/75">
+    {#if start}<p class="my-1 pl-5 text-xs text-secondary">
         {start} earlier · ↑ to browse
       </p>{/if}
     <ul class="m-0 list-none space-y-0.5 p-0" aria-label="Workspace sessions">
       {#each visible as choice, offset (choice.id)}
         {@const index = start + offset}
-        <li>
+        <li class="rounded bg-ink text-canvas">
           <button
             type="button"
             disabled={view.loading}
             onfocus={() => onHighlight(index)}
             onclick={() => onChoose(index)}
             aria-current={view.selected === index ? "true" : undefined}
-            class="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-canvas/5 focus-visible:outline-2 focus-visible:outline-canvas {view.selected ===
+            class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-canvas/10 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
             index
-              ? 'bg-canvas/10 text-canvas'
+              ? 'bg-canvas/10 font-medium text-canvas'
               : 'text-canvas'}"
           >
             <span class="w-3 shrink-0" aria-hidden="true"
@@ -107,34 +108,36 @@
           </button>
         </li>
       {/each}
+      <li class="mt-1 rounded bg-ink text-canvas">
+        <button
+          type="button"
+          disabled={view.loading || !view.ready}
+          onfocus={() => onHighlight(view.choices.length)}
+          onclick={() => onChoose(view.choices.length)}
+          class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-canvas/10 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
+          view.choices.length
+            ? 'bg-canvas/10 font-medium text-canvas'
+            : 'text-canvas'}"
+        >
+          <span class="w-3 shrink-0" aria-hidden="true"
+            >{view.selected === view.choices.length ? ">" : ""}</span
+          ><span class="flex-1">New session</span>
+          {#if !view.online && view.ready}<span class="text-xs text-canvas/75"
+              >agent offline</span
+            >{/if}
+        </button>
+      </li>
     </ul>
     {#if start + pageSize < view.choices.length}<p
-        class="my-2 pl-7 text-xs text-canvas/75"
+        class="my-1 pl-5 text-xs text-secondary"
       >
         {view.choices.length - start - pageSize} more · ↓ to browse
       </p>{/if}
-    <button
-      type="button"
-      disabled={view.loading || !view.ready}
-      onfocus={() => onHighlight(view.choices.length)}
-      onclick={() => onChoose(view.choices.length)}
-      class="mt-2 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-canvas/5 focus-visible:outline-2 focus-visible:outline-canvas {view.selected ===
-      view.choices.length
-        ? 'bg-canvas/10 text-canvas'
-        : 'text-canvas'}"
-    >
-      <span class="w-3 shrink-0" aria-hidden="true"
-        >{view.selected === view.choices.length ? ">" : ""}</span
-      ><span class="flex-1">New session</span>
-      {#if !view.online && view.ready}<span class="text-xs text-canvas/75"
-          >agent offline</span
-        >{/if}
-    </button>
   </div>
   <p
-    class="mt-3 mb-0 text-xs leading-relaxed {view.error
-      ? 'text-[#8c2542]'
-      : 'text-canvas/75'}"
+    class="mt-2 mb-0 text-xs leading-relaxed {view.error
+      ? 'text-danger'
+      : 'text-secondary'}"
     role="status"
     aria-live="polite"
   >
@@ -144,11 +147,11 @@
   </p>
   {#snippet actions()}
     <button
-      class="bg-transparent text-canvas hover:text-canvas disabled:opacity-50"
+      class="bg-transparent text-ink hover:text-accent disabled:opacity-50"
       type="button"
       disabled={view.loading}
       data-picker-action
-      onclick={onRefresh}><kbd class="mr-2 text-canvas">r</kbd>refresh</button
+      onclick={onRefresh}><kbd class="mr-2 text-accent">r</kbd>refresh</button
     >
   {/snippet}
 </TerminalPanel>
