@@ -60,72 +60,8 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 	defer stop()
 
 	out := &writer{conn: conn}
-	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	hello, err := protocol.Read(conn)
-	if err != nil {
-		out.fail("invalid_handshake")
-		return
-	}
-	if (hello.Type != "attach" && hello.Type != "create") || hello.Version != protocol.Version {
-		out.fail("unsupported_protocol")
-		return
-	}
-
-	if !protocol.ValidSize(hello.Cols, hello.Rows) || len(hello.Data) != 0 || hello.Error != "" || hello.Code != 0 {
-		out.fail("invalid_attach")
-		return
-	}
-	if hello.Term == "" {
-		hello.Term = "xterm-256color"
-	}
-	if !validTerm.MatchString(hello.Term) {
-		out.fail("invalid_terminal")
-		return
-	}
-	_ = conn.SetReadDeadline(time.Time{})
-	sessionID := hello.SessionID
-	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
-		parts := strings.Split(hello.Token, ".")
-		if len(parts) != 5 {
-			out.fail("unauthorized")
-			return
-		}
-		if sessionID != "" && sessionID != parts[1] {
-			out.fail("unauthorized")
-			return
-		}
-		sessionID = parts[1]
-	}
-	if sessionID == "" {
-		sessionID = a.opts.SessionID
-	}
-	if !sessionHandle.MatchString(sessionID) {
-		out.fail("invalid_attach")
-		return
-	}
-	caps := []string{"terminate"}
-	if a.opts.Backend == "tmux" {
-		caps = []string{"persistence", "reconnect", "terminate"}
-	}
-	for _, required := range hello.Capabilities {
-		found := false
-		for _, cap := range caps {
-			if required == cap {
-				found = true
-			}
-		}
-		if !found {
-			out.fail("capability_mismatch")
-			return
-		}
-	}
-	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
-		if !a.opts.Grants.Authentic(hello.Token, time.Now()) {
-			out.fail("unauthorized")
-			return
-		}
-	} else if !a.opts.AllowDevToken || a.opts.Token == "" || subtle.ConstantTimeCompare([]byte(hello.Token), []byte(a.opts.Token)) != 1 {
-		out.fail("unauthorized")
+	hello, sessionID, caps, ok := a.readHandshake(conn, out)
+	if !ok {
 		return
 	}
 	a.controllerMu.Lock()
@@ -150,10 +86,88 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 		out.fail("unauthorized")
 		return
 	}
-	// Each admitted grant nonce identifies this connection's lease. A busy
-	// attempt never consumes a grant or changes the active lease.
+	defer a.monitorAccess(ctx, conn, hello.Token, sessionID, &ended)()
+	ended = a.runSession(ctx, conn, out, hello, sessionID, caps)
+}
+
+func (a *Agent) readHandshake(conn net.Conn, out *writer) (hello protocol.Message, sessionID string, caps []string, ok bool) {
+	var err error
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	hello, err = protocol.Read(conn)
+	if err != nil {
+		out.fail("invalid_handshake")
+		return hello, sessionID, caps, false
+	}
+	if (hello.Type != "attach" && hello.Type != "create") || hello.Version != protocol.Version {
+		out.fail("unsupported_protocol")
+		return hello, sessionID, caps, false
+	}
+
+	if !protocol.ValidSize(hello.Cols, hello.Rows) || len(hello.Data) != 0 || hello.Error != "" || hello.Code != 0 {
+		out.fail("invalid_attach")
+		return hello, sessionID, caps, false
+	}
+	if hello.Term == "" {
+		hello.Term = "xterm-256color"
+	}
+	if !validTerm.MatchString(hello.Term) {
+		out.fail("invalid_terminal")
+		return hello, sessionID, caps, false
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+	sessionID = hello.SessionID
 	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
 		parts := strings.Split(hello.Token, ".")
+		if len(parts) != 5 {
+			out.fail("unauthorized")
+			return hello, sessionID, caps, false
+		}
+		if sessionID != "" && sessionID != parts[1] {
+			out.fail("unauthorized")
+			return hello, sessionID, caps, false
+		}
+		sessionID = parts[1]
+	}
+	if sessionID == "" {
+		sessionID = a.opts.SessionID
+	}
+	if !sessionHandle.MatchString(sessionID) {
+		out.fail("invalid_attach")
+		return hello, sessionID, caps, false
+	}
+	caps = []string{"terminate"}
+	if a.opts.Backend == "tmux" {
+		caps = []string{"persistence", "reconnect", "terminate"}
+	}
+	for _, required := range hello.Capabilities {
+		found := false
+		for _, cap := range caps {
+			if required == cap {
+				found = true
+			}
+		}
+		if !found {
+			out.fail("capability_mismatch")
+			return hello, sessionID, caps, false
+		}
+	}
+	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
+		if !a.opts.Grants.Authentic(hello.Token, time.Now()) {
+			out.fail("unauthorized")
+			return hello, sessionID, caps, false
+		}
+	} else if !a.opts.AllowDevToken || a.opts.Token == "" || subtle.ConstantTimeCompare([]byte(hello.Token), []byte(a.opts.Token)) != 1 {
+		out.fail("unauthorized")
+		return hello, sessionID, caps, false
+	}
+	return hello, sessionID, caps, true
+}
+
+func (a *Agent) monitorAccess(ctx context.Context, conn net.Conn, token, sessionID string, ended *bool) func() {
+	// Each admitted grant nonce identifies this connection's lease. A busy
+	// attempt never consumes a grant or changes the active lease.
+	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
+		parts := strings.Split(token, ".")
 		nonce := parts[3]
 		accessCtx, accessCancel := context.WithCancel(ctx)
 		stopped := make(chan struct{})
@@ -181,7 +195,7 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 				}
 			}
 		}()
-		defer func() {
+		return func() {
 			accessCancel()
 			<-stopped
 			release, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -189,13 +203,18 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 			operation := "release:"
 			if a.opts.Backend == "tmux" {
 				operation = "detach:"
-				if ended {
+				if *ended {
 					operation = "ended:"
 				}
 			}
 			_ = a.opts.CheckAccess(release, sessionID, operation+nonce)
-		}()
+		}
 	}
+	return func() {}
+}
+
+func (a *Agent) runSession(ctx context.Context, conn net.Conn, out *writer, hello protocol.Message, sessionID string, caps []string) (ended bool) {
+	var err error
 	var child *process
 	if a.opts.Backend == "tmux" {
 		child, err = a.opts.Manager.AttachContext(ctx, sessionID, hello.Type == "create", a.opts, hello.Term, hello.Cols, hello.Rows)
@@ -242,81 +261,9 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 
 	a.event(SessionAttached)
 	outputDone := make(chan error, 1)
-	go func() {
-		buf := make([]byte, 16<<10)
-		for {
-			n, err := child.file.Read(buf)
-			if n > 0 {
-				if sendErr := out.send(protocol.Message{Type: "output", Data: buf[:n]}); sendErr != nil {
-					outputDone <- sendErr
-					return
-				}
-			}
-			if err != nil {
-				outputDone <- nil
-				return
-			} // PTY EOF may be EIO on Unix.
-		}
-	}()
+	go pumpOutput(child, out, outputDone)
 	inputDone := make(chan error, 1)
-	go func() {
-		for {
-			_ = conn.SetReadDeadline(time.Now().Add(a.opts.ClientIdleTimeout))
-			m, err := protocol.Read(conn)
-			if err != nil {
-				inputDone <- err
-				return
-			}
-			// Only terminal input, resize and detach are legal after attachment.
-			if m.Version != 0 || m.Token != "" || m.Term != "" || m.Error != "" || m.Code != 0 || m.SessionID != "" || len(m.Capabilities) > 0 || m.Backend != "" {
-				inputDone <- errors.New("invalid_message")
-				return
-			}
-			switch m.Type {
-			case "ping":
-				if err := out.send(protocol.Message{Type: "pong"}); err != nil {
-					inputDone <- err
-					return
-				}
-			case "input":
-				if m.Cols != 0 || m.Rows != 0 {
-					inputDone <- errors.New("invalid_message")
-					return
-				}
-				if err := child.file.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
-					inputDone <- err
-					return
-				}
-				if err := writeAll(child.file, m.Data); err != nil {
-					inputDone <- err
-					return
-				}
-			case "resize":
-				if !protocol.ValidSize(m.Cols, m.Rows) || len(m.Data) != 0 {
-					inputDone <- errors.New("invalid_resize")
-					return
-				}
-				if err := child.resize(m.Cols, m.Rows); err != nil {
-					inputDone <- err
-					return
-				}
-			case "detach", "terminate":
-				if m.Cols != 0 || m.Rows != 0 || len(m.Data) != 0 {
-					inputDone <- errors.New("invalid_message")
-					return
-				}
-				if m.Type == "terminate" {
-					inputDone <- errors.New("terminate")
-				} else {
-					inputDone <- errors.New("detach")
-				}
-				return
-			default:
-				inputDone <- errors.New("invalid_message")
-				return
-			}
-		}
-	}()
+	go a.pumpInput(conn, child, out, inputDone)
 	// Closing both sockets/files unblocks pumps on every return path, then joins
 	// them so Serve never leaves connection goroutines behind.
 	defer func() {
@@ -446,13 +393,94 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 			}
 		}
 	}
+	return ended
+}
+
+func pumpOutput(child *process, out *writer, outputDone chan<- error) {
+	buf := make([]byte, 16<<10)
+	for {
+		n, err := child.file.Read(buf)
+		if n > 0 {
+			if sendErr := out.send(protocol.Message{Type: "output", Data: buf[:n]}); sendErr != nil {
+				outputDone <- sendErr
+				return
+			}
+		}
+		if err != nil {
+			outputDone <- nil
+			return
+		} // PTY EOF may be EIO on Unix.
+	}
+}
+
+func (a *Agent) pumpInput(conn net.Conn, child *process, out *writer, inputDone chan<- error) {
+	for {
+		_ = conn.SetReadDeadline(time.Now().Add(a.opts.ClientIdleTimeout))
+		m, err := protocol.Read(conn)
+		if err != nil {
+			inputDone <- err
+			return
+		}
+		// Only terminal input, resize and detach are legal after attachment.
+		if m.Version != 0 || m.Token != "" || m.Term != "" || m.Error != "" || m.Code != 0 || m.SessionID != "" || len(m.Capabilities) > 0 || m.Backend != "" {
+			inputDone <- errors.New("invalid_message")
+			return
+		}
+		switch m.Type {
+		case "ping":
+			if err := out.send(protocol.Message{Type: "pong"}); err != nil {
+				inputDone <- err
+				return
+			}
+		case "input":
+			if m.Cols != 0 || m.Rows != 0 {
+				inputDone <- errors.New("invalid_message")
+				return
+			}
+			if err := child.file.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
+				inputDone <- err
+				return
+			}
+			if err := writeAll(child.file, m.Data); err != nil {
+				inputDone <- err
+				return
+			}
+		case "resize":
+			if !protocol.ValidSize(m.Cols, m.Rows) || len(m.Data) != 0 {
+				inputDone <- errors.New("invalid_resize")
+				return
+			}
+			if err := child.resize(m.Cols, m.Rows); err != nil {
+				inputDone <- err
+				return
+			}
+		case "detach", "terminate":
+			if m.Cols != 0 || m.Rows != 0 || len(m.Data) != 0 {
+				inputDone <- errors.New("invalid_message")
+				return
+			}
+			if m.Type == "terminate" {
+				inputDone <- errors.New("terminate")
+			} else {
+				inputDone <- errors.New("detach")
+			}
+			return
+		default:
+			inputDone <- errors.New("invalid_message")
+			return
+		}
+	}
 }
 
 func writeAll(w io.Writer, b []byte) error {
 	for len(b) > 0 {
 		n, err := w.Write(b)
-		if err != nil { return err }
-		if n == 0 { return io.ErrShortWrite }
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
 		b = b[n:]
 	}
 	return nil
