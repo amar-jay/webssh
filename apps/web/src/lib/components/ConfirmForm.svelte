@@ -1,6 +1,7 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import { Dialog } from "bits-ui";
-  import { buttonPrimary, buttonQuiet, dialogOverlay, dialogPanel } from "#lib/ui.js";
+  import { buttonPrimary, buttonQuiet, iconAction, dialogOverlay, dialogPanel } from "#lib/ui.js";
 
   let {
     label,
@@ -9,6 +10,7 @@
     confirm,
     action,
     fields,
+    icon,
   }: {
     label: string;
     title: string;
@@ -16,11 +18,12 @@
     confirm: string;
     action: string;
     fields: Record<string, string>;
+    icon?: Snippet;
   } = $props();
 </script>
 
 <Dialog.Root>
-  <Dialog.Trigger class={buttonQuiet}>{label}</Dialog.Trigger>
+  <Dialog.Trigger class={icon ? iconAction : buttonQuiet} aria-label={label} title={label}>{#if icon}{@render icon()}{:else}{label}{/if}</Dialog.Trigger>
   <Dialog.Portal>
     <Dialog.Overlay class={dialogOverlay} />
     <Dialog.Content class="w-[min(420px,calc(100vw-32px))] p-6 {dialogPanel}">

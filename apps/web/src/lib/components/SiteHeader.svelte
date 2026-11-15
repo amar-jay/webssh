@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
-  import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
+  import Monitor from "@lucide/svelte/icons/monitor";
   import LogIn from "@lucide/svelte/icons/log-in";
   import LogOut from "@lucide/svelte/icons/log-out";
   import { buttonBright } from "#lib/ui.js";
@@ -9,8 +9,7 @@
   let { signedIn = false }: { signedIn?: boolean } = $props();
   let landing = $derived(page.url.pathname === "/");
   const appLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/sessions", label: "Sessions" },
+    { href: "/machines", label: "Machines" },
     { href: "/pair", label: "Pair" },
   ];
 </script>
@@ -32,13 +31,13 @@
     aria-label="Main navigation"
   >
     {#if landing || !signedIn}
-      <a class="hover:text-ink" href="/login">Serve</a>
+      <a class="hover:text-ink" href={signedIn ? "/machines" : "/login"}>Serve</a>
     {:else}
       {#each appLinks as link (link.href)}
         <a
           class="hover:text-ink aria-[current=page]:text-ink"
           href={link.href}
-          aria-current={page.url.pathname === link.href ? "page" : undefined}
+          aria-current={(page.url.pathname === link.href || page.url.pathname.startsWith(link.href + "/")) ? "page" : undefined}
           >{link.label}</a
         >
       {/each}
@@ -61,9 +60,9 @@
       >
     </form>
   {:else}
-    <a class={buttonBright} href={signedIn ? "/dashboard" : "/login"}
-      >{signedIn ? "Dashboard" : "Sign in"}
-      {#if signedIn}<LayoutDashboard class="size-3.5" aria-hidden="true" />{:else}<LogIn
+    <a class={buttonBright} href={signedIn ? "/machines" : "/login"}
+      >{signedIn ? "Machines" : "Sign in"}
+      {#if signedIn}<Monitor class="size-3.5" aria-hidden="true" />{:else}<LogIn
           class="size-3.5"
           aria-hidden="true"
         />{/if}</a

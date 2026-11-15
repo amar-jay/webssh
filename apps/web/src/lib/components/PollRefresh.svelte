@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invalidateAll } from "$app/navigation";
-  import { buttonQuiet } from "#lib/ui.js";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Tip from "./Tip.svelte";
+  import { iconAction } from "#lib/ui.js";
 
   let { failed = $bindable(false), show = true }: { failed?: boolean; show?: boolean } =
     $props();
@@ -29,7 +31,7 @@
 </script>
 
 {#if show}
-  <button class={buttonQuiet} type="button" onclick={refresh} disabled={refreshing}>
-    {refreshing ? "Refreshing…" : "Refresh"}
-  </button>
+  <Tip label={refreshing ? "Refreshing…" : "Refresh"} class={iconAction} onclick={refresh} disabled={refreshing}>
+    <RefreshCw class="size-4 {refreshing ? 'animate-spin motion-reduce:animate-none' : ''}" aria-hidden="true" />
+  </Tip>
 {/if}

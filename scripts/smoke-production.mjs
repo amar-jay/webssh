@@ -31,13 +31,18 @@ assert.match(session.headers.get("location"), /^\/login\?/);
 const help = await get("/help");
 assert.equal(help.status, 200);
 assert.match(await help.text(), /How do I pair a machine/);
-for (const path of ["/dashboard", "/sessions"]) {
+for (const path of ["/machines", "/machines/release_smoke"]) {
   const response = await fetch(origin + path, {
     redirect: "manual", headers: { cookie: "webssh_dev=1" },
     signal: AbortSignal.timeout(15000),
   });
   assert.equal(response.status, 303);
   assert.match(response.headers.get("location"), /^\/login/);
+}
+for (const path of ["/dashboard", "/sessions"]) {
+  const response = await get(path);
+  assert.equal(response.status, 303);
+  assert.equal(response.headers.get("location"), "/machines");
 }
 const installer = await get("/install.sh");
 assert.equal(installer.status, 200);

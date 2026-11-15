@@ -84,8 +84,8 @@ test('session resolver returns a fixed quota error without backend diagnostics',
  assert.equal(response.status,429);assert.equal(response.headers.get('cache-control'),'no-store');assert.deepEqual(await response.json(),{error:'resource_limit'});
 });
 
-test('dashboard revocation derives the owner from the session, never posted identity',async()=>{
- const root=await moduleAt('src/routes/dashboard/+page.server.ts');let called=false;
+test('machine revocation derives the owner from the session, never posted identity',async()=>{
+ const root=await moduleAt('src/routes/machines/+page.server.ts');let called=false;
  const namespace={idFromName:name=>{assert.equal(name,'owner:42');return name;},get:()=>({revokeAgent:async(owner,id)=>{called=true;assert.equal(owner,'42');assert.equal(id,'agent-123456789012');return true;}})};
  const response=await root.actions.revoke({locals:{user:{ownerId:'42',sessionId:'browser'}},platform:{env:{WEBSSH_STATE:namespace}},request:new Request('https://webssh.example/?/revoke',{method:'POST',body:new URLSearchParams({agentId:'agent-123456789012',ownerId:'different-owner'})})});
  assert(called);assert.match(response.message,/Access revoked/);
@@ -99,4 +99,46 @@ test('production ignores the localhost development login cookie', async () => {
   await hook.handle({ event, resolve: async () => new Response('ok') });
   assert.equal(event.locals.user, null);
  }
+});
+
+
+const machinePage = await moduleAt('src/routes/machines/[machine_id]/+page.server.ts');
+const machineA = 'machine_aaaaaaaaaa', machineB = 'machine_bbbbbbbbbb';
+const runA = 'run_aaaaaaaaaaaaaa', runB = 'run_bbbbbbbbbbbbbb';
+const sessionA = 'session_aaaaaaaaaa', sessionB = 'session_bbbbbbbbbb';
+function machineEvent(state, fields = {}) {
+ const ownerId = '42';
+ const namespace = { idFromName: name => { assert.equal(name, 'owner:42'); return name; }, get: () => state };
+ return { locals: { user: { ownerId, sessionId: 'browser' } }, params: { machine_id: machineA },
+  platform: { env: { WEBSSH_STATE: namespace } }, setHeaders: () => {},
+  request: new Request('https://webssh.example/machines/' + machineA, { method: 'POST', body: new URLSearchParams(fields) }) };
+}
+test('machine page only returns the selected owned machine and its sessions', async () => {
+ const state = {
+  listAgents: async owner => { assert.equal(owner, '42'); return [{ agentId: machineA }, { agentId: machineB }]; },
+  listRuns: async () => [{ agentId: machineA, runId: runA, status: 'online' }, { agentId: machineB, runId: runB, status: 'online' }],
+  listTerminalSessions: async () => [{ agentId: machineA, terminalSessionId: sessionA }, { agentId: machineB, terminalSessionId: sessionB }],
+ };
+ const event = machineEvent(state);
+ const result = await machinePage.load(event);
+ assert.equal(result.agent.agentId, machineA);
+ assert.deepEqual(result.runs.map(run => run.runId), [runA]);
+ assert.deepEqual(result.sessions.map(session => session.terminalSessionId), [sessionA]);
+ await assert.rejects(() => machinePage.load({ ...event, params: { machine_id: 'unknown' } }), cause => cause.status === 404);
+ await assert.rejects(() => machinePage.load({ ...event, locals: { user: null } }), cause => cause.status === 303 && cause.location.includes('/login?next='));
+});
+test('machine actions reject runs and sessions from a different machine', async () => {
+ let started = 0, ended = 0;
+ const state = {
+  listRuns: async owner => { assert.equal(owner, '42'); return [{ runId: runA, agentId: machineA }, { runId: runB, agentId: machineB }]; },
+  startRunSession: async (owner, run) => { assert.equal(owner, '42'); assert.equal(run, runA); started++; return { terminalSessionId: sessionA }; },
+  getTerminalSession: async (owner, id) => { assert.equal(owner, '42'); return { agentId: id === sessionA ? machineA : machineB }; },
+  endTerminalSession: async (owner, id) => { assert.equal(owner, '42'); assert.equal(id, sessionA); ended++; return true; },
+ };
+ assert.equal((await machinePage.actions.start(machineEvent(state, { runId: runB }))).status, 404);
+ assert.equal((await machinePage.actions.end(machineEvent(state, { sessionId: sessionB }))).status, 404);
+ assert.equal(started, 0); assert.equal(ended, 0);
+ await assert.rejects(() => machinePage.actions.start(machineEvent(state, { runId: runA, ownerId: 'forged' })), cause => cause.status === 303 && cause.location === '/s/' + sessionA);
+ assert.match((await machinePage.actions.end(machineEvent(state, { sessionId: sessionA, ownerId: 'forged' }))).message, /Termination requested/);
+ assert.equal(started, 1); assert.equal(ended, 1);
 });

@@ -19,8 +19,7 @@
       <p class="m-0">
         Pairing saves your machine’s credentials. Start the agent with
         <code class="text-accent">webssh serve .</code>, open the printed URL, and
-        sign in with the same GitHub account. Open a workspace from the dashboard,
-        and end it from Sessions.
+        sign in with the same GitHub account. Choose a machine in Machines to start, reopen, or end its sessions.
       </p>
     </HelpQuestion>
     <HelpQuestion value="expired" title="My code has expired">

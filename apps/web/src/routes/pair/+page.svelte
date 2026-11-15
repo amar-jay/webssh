@@ -75,7 +75,7 @@
           Credentials are saved on your machine. Run webssh serve . there, then
           open its browser URL.
         </div>
-        <a class="{buttonPrimary} mt-[18px] w-full" href="/dashboard">Back to dashboard</a>
+        <a class="{buttonPrimary} mt-[18px] w-full" href="/machines">Back to machines</a>
       {:else if !data.code || data.error}
         <div class="{machineIcon} mb-6" aria-hidden="true">›_</div>
         <h2 id="pair-heading" class="text-2xl tracking-tight">
