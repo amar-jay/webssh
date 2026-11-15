@@ -42,3 +42,5 @@ See [agent protocol](agent-protocol.md) for framing, credentials, lifecycle, and
 Paired mode now requires online run registration and session-scoped grants. Ephemeral local testing must explicitly pass `--backend ephemeral --dev-token`. Use `pair --renew` to rotate a paired token; restart running agents afterward. See [identity and pairing](identity-pairing.md) for revocation timing and recovery.
 
 For availability, startup cleanup, connection deadlines, and the session lifecycle, see [CLI-to-browser flow](cli-browser-flow.md).
+
+For owned tmux cleanup while serve is stopped, use `webssh sessions <path>`, `webssh sessions --terminate <id> <path>`, or `webssh sessions --terminate-all <path>`. See [access and lifecycle controls](access-lifecycle.md).

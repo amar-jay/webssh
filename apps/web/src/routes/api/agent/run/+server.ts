@@ -85,6 +85,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    if (message === "resource_limit") return jsonError("resource_limit", 429);
     return jsonError(
       message === "pairing_rate_limited"
         ? "rate_limited"

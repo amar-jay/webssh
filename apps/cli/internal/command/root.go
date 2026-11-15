@@ -20,6 +20,7 @@ func New() *cli.Command {
 			configCommand(),
 			pairCommand(),
 			serveCommand(),
+			sessionsCommand(),
 		},
 		// Keep process lifetime in main/tests; urfave help still prints and returns.
 		ExitErrHandler: func(context.Context, *cli.Command, error) {},

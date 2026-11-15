@@ -24,16 +24,28 @@ func NewGrantVerifier(agentID, grantKey string) *GrantVerifier {
 	return &GrantVerifier{AgentID: agentID, GrantKey: grantKey, nonces: make(map[string]int64)}
 }
 
-func (v *GrantVerifier) Verify(token string, now time.Time) (sessionID string, err error) {
+func (v *GrantVerifier) Verify(token string, now time.Time) (string, error) {
+	return v.verify(token, now, true)
+}
+
+// Authentic checks an unspent grant before revealing controller occupancy.
+func (v *GrantVerifier) Authentic(token string, now time.Time) bool {
+	_, err := v.verify(token, now, false)
+	return err == nil
+}
+func (v *GrantVerifier) verify(token string, now time.Time, consume bool) (sessionID string, err error) {
 	if v == nil || v.GrantKey == "" || v.AgentID == "" {
 		return "", errors.New("grant verifier unavailable")
+	}
+	if len(token) > 512 {
+		return "", errors.New("invalid grant")
 	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 5 || parts[0] != "v1" {
 		return "", errors.New("invalid grant")
 	}
 	sessionID = parts[1]
-	if sessionID == "" || strings.ContainsAny(sessionID, ".\n") {
+	if !sessionHandle.MatchString(sessionID) {
 		return "", errors.New("invalid grant")
 	}
 	expUnix, err := strconv.ParseInt(parts[2], 10, 64)
@@ -41,11 +53,11 @@ func (v *GrantVerifier) Verify(token string, now time.Time) (sessionID string, e
 		return "", errors.New("invalid grant expiry")
 	}
 	nonce := parts[3]
-	if nonce == "" || strings.ContainsAny(nonce, ".\n") {
+	if !sessionHandle.MatchString(nonce) {
 		return "", errors.New("invalid grant")
 	}
 	mac, err := base64.RawURLEncoding.DecodeString(parts[4])
-	if err != nil {
+	if err != nil || len(mac) != sha256.Size {
 		return "", errors.New("invalid grant mac")
 	}
 	if now.Unix() >= expUnix || expUnix > now.Unix()+60 {
@@ -67,13 +79,15 @@ func (v *GrantVerifier) Verify(token string, now time.Time) (sessionID string, e
 	if len(v.nonces) >= 4096 {
 		return "", errors.New("grant capacity exhausted")
 	}
-	v.nonces[nonce] = expUnix
+	if consume {
+		v.nonces[nonce] = expUnix
+	}
 	return sessionID, nil
 }
 
 func (v *GrantVerifier) pruneLocked(now int64) {
 	for nonce, exp := range v.nonces {
-		if exp < now {
+		if exp <= now {
 			delete(v.nonces, nonce)
 		}
 	}

@@ -103,3 +103,19 @@ test('explicit detach and terminate use distinct typed operations',async()=>{
  await tick();other.push({type:'ready',version:2});await tick();end.terminate();await tick();
  assert(other.sent.some(m=>m.type==='terminate'));other.push({type:'terminated'});assert.equal((await end.done).state,'terminated');
 });
+
+test('a slow writer cannot grow the input queue without bound',async()=>{
+ const h=setup();let block=false,release;
+ // Use the real harness to reach ready, then hold input writes while flooding it.
+ const base=h.transport;const original=await base.createClient();const originalDial=original.dial;
+ const wrapped={createClient:async()=>({...original,dial:async()=>{
+  const stream=await originalDial();const write=stream.write;
+  return {...stream,write:bytes=>block?new Promise(resolve=>{release=resolve;}):write(bytes)};
+ }})};
+ const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:wrapped});
+ await tick();h.push({type:'ready',version:2});await tick();block=true;
+ h.handlers.data('x'.repeat(65536));await tick();assert(release,'writer should be blocked');
+ for(let i=0;i<32 && h.handlers.data;i++)h.handlers.data('x'.repeat(65536));
+ assert.equal((await session.done).state,'failed');assert.equal(h.handlers.data,undefined);
+ release?.();session.dispose();
+});

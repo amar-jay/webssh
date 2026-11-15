@@ -74,3 +74,43 @@ func TestGrantCapacityPreservesReplayAndBoundsExpiry(t *testing.T) {
 		t.Fatal("unbounded expiry accepted")
 	}
 }
+
+func TestGrantExpiryBoundaryAndInputBounds(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	verifier := NewGrantVerifier("agent", "key")
+	for _, token := range []string{
+		EncodeGrant("agent", "key", "session", "nonce", now.Unix()),
+		EncodeGrant("agent", "key", strings.Repeat("s", 65), "nonce", now.Unix()+60),
+		EncodeGrant("agent", "key", "session", strings.Repeat("n", 65), now.Unix()+60),
+		strings.Repeat("x", 513),
+	} {
+		if _, err := verifier.Verify(token, now); err == nil {
+			t.Fatal("invalid/expired grant accepted")
+		}
+	}
+	if _, err := verifier.Verify(EncodeGrant("agent", "key", "session", "valid", now.Unix()+1), now); err != nil {
+		t.Fatal(err)
+	}
+	verifier.mu.Lock()
+	verifier.pruneLocked(now.Unix() + 1)
+	remaining := len(verifier.nonces)
+	verifier.mu.Unlock()
+	if remaining != 0 {
+		t.Fatal("expired nonce retained at exact expiry boundary")
+	}
+}
+
+func TestAuthenticityCheckDoesNotConsumeGrant(t *testing.T) {
+	verifier := NewGrantVerifier("agent", "key")
+	now := time.Now()
+	grant := EncodeGrant("agent", "key", "session", "nonce", now.Unix()+60)
+	if !verifier.Authentic(grant, now) {
+		t.Fatal("authentic grant rejected")
+	}
+	if _, err := verifier.Verify(grant, now); err != nil {
+		t.Fatal("check consumed grant")
+	}
+	if verifier.Authentic(grant, now) {
+		t.Fatal("replayed grant considered authentic")
+	}
+}

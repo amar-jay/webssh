@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 const source = await build({stdin:{contents:`import { WebSSHState as Base } from './src/index.ts';
-export class WebSSHState extends Base { async ageEnd(id,age) { this.ctx.storage.sql.exec('UPDATE terminal_sessions SET ended_at = ? WHERE terminal_session_id = ?',Date.now()-age,id); await this.alarm(); } async testCall(method,args) { try { return {ok:true,value:await this[method](...args)}; } catch(e) { return {ok:false,error:e.message}; } } async ageRun(id,age) { this.ctx.storage.sql.exec('UPDATE agent_runs SET last_seen_at = ? WHERE run_id = ?',Date.now()-age,id); } async expire(code) { this.ctx.storage.sql.exec('UPDATE pairing_attempts SET expires_at = 0 WHERE code = ?',code); } }
+export class WebSSHState extends Base { async sqlForTest(query,bindings=[]) { return [...this.ctx.storage.sql.exec(query,...bindings)]; } async ageEnd(id,age) { this.ctx.storage.sql.exec('UPDATE terminal_sessions SET ended_at = ? WHERE terminal_session_id = ?',Date.now()-age,id); await this.alarm(); } async testCall(method,args) { try { return {ok:true,value:await this[method](...args)}; } catch(e) { return {ok:false,error:e.message}; } } async ageRun(id,age) { this.ctx.storage.sql.exec('UPDATE agent_runs SET last_seen_at = ? WHERE run_id = ?',Date.now()-age,id); } async expire(code) { this.ctx.storage.sql.exec('UPDATE pairing_attempts SET expires_at = 0 WHERE code = ?',code); } }
 export default { fetch(){ return new Response('test'); } };`,resolveDir:process.cwd(),sourcefile:'test-worker.ts'},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],write:false});
 test('SQLite DO: owner isolation, pairing races/expiry, single-use grants and revocation', async () => {
  const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
@@ -147,5 +147,93 @@ test('durable sessions detach, fence stale grants on restart, and reconcile expl
   await owner.agentSession('durable',agent.agentId,agent.agentToken,next,nextNonce,runId,generation);
   await owner.revokeAgent('durable',agent.agentId);
   await rpcReject(owner,'agentSession',['durable',agent.agentId,agent.agentToken,next,'check:'+nextNonce,runId,generation],/unauthorized/);
+ }finally{await mf.dispose()}
+});
+
+test('exact grant/browser expiry and revocation invalidate admission and active leases',async()=>{
+ const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
+ try{
+  const ns=await mf.getDurableObjectNamespace('STATE'),owner=ns.get(ns.idFromName('owner:expiry'));
+  const agent=await owner.registerAgent('expiry','box'),browser=await owner.createBrowserSession('expiry');
+  const runId='expiry_run_123456789';
+  await owner.agentRun('expiry',agent.agentId,agent.agentToken,{operation:'start',runId,machineName:'box',workspaceLabel:'work'});
+  await owner.agentRun('expiry',agent.agentId,agent.agentToken,{operation:'announce',runId,address:'tcExpiryAddress123456',port:2222});
+  let issued=await owner.resolveSession('expiry',runId,browser.sessionId),nonce=issued.grant.split('.')[3];
+  await owner.sqlForTest('UPDATE grant_nonces SET exp_unix = ? WHERE nonce = ?',[Math.floor(Date.now()/1000),nonce]);
+  await rpcReject(owner,'agentSession',['expiry',agent.agentId,agent.agentToken,runId,nonce,runId],/unauthorized/);
+  issued=await owner.resolveSession('expiry',runId,browser.sessionId);nonce=issued.grant.split('.')[3];
+  await owner.agentSession('expiry',agent.agentId,agent.agentToken,runId,nonce,runId);
+  await owner.sqlForTest('UPDATE grant_nonces SET exp_unix = 0 WHERE nonce = ?',[nonce]);
+  // Grant TTL is an attach deadline, not a shell lifetime. Current browser/agent/lease remain mandatory.
+  await owner.agentSession('expiry',agent.agentId,agent.agentToken,runId,'check:'+nonce,runId);
+  await owner.sqlForTest('UPDATE browser_sessions SET expires_at = ? WHERE session_id = ?',[Date.now(),browser.sessionId]);
+  await rpcReject(owner,'agentSession',['expiry',agent.agentId,agent.agentToken,runId,'check:'+nonce,runId],/unauthorized/);
+  await rpcReject(owner,'resolveSession',['expiry',runId,browser.sessionId]);
+  const other=await owner.createBrowserSession('expiry');
+  await owner.sqlForTest('UPDATE terminal_sessions SET active_nonce = NULL,lease_expires_at = NULL WHERE terminal_session_id = ?',[runId]);
+  issued=await owner.resolveSession('expiry',runId,other.sessionId);nonce=issued.grant.split('.')[3];
+  await owner.agentSession('expiry',agent.agentId,agent.agentToken,runId,nonce,runId);
+  await owner.revokeBrowserSession(other.sessionId);
+  await rpcReject(owner,'agentSession',['expiry',agent.agentId,agent.agentToken,runId,'check:'+nonce,runId],/unauthorized/);
+  assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM grant_nonces WHERE browser_session_id = ?',[other.sessionId]))[0].n,0);
+  assert.equal((await owner.getTerminalSession('expiry',runId)).endedAt,null);
+ }finally{await mf.dispose()}
+});
+
+test('concurrent grants and metadata creation obey hard storage quotas without evicting tombstones',async()=>{
+ const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
+ try{
+  const ns=await mf.getDurableObjectNamespace('STATE'),owner=ns.get(ns.idFromName('owner:quota'));
+  const agent=await owner.registerAgent('quota','box'),browser=await owner.createBrowserSession('quota'),runId='quota_run_1234567890';
+  await owner.agentRun('quota',agent.agentId,agent.agentToken,{operation:'start',runId,machineName:'box',workspaceLabel:'work'});
+  await owner.agentRun('quota',agent.agentId,agent.agentToken,{operation:'announce',runId,address:'tcQuotaAddress1234567',port:2222});
+  const results=await Promise.all(Array.from({length:20},()=>owner.testCall('resolveSession',['quota',runId,browser.sessionId])));
+  assert.equal(results.filter(r=>r.ok).length,16);assert(results.filter(r=>!r.ok).every(r=>r.error==='resource_limit'));
+  const nonce=results.find(r=>r.ok).value.grant.split('.')[3];
+  await owner.agentSession('quota',agent.agentId,agent.agentToken,runId,nonce,runId);
+  await owner.sqlForTest('UPDATE grant_nonces SET exp_unix = 0');
+  // Pruning frees unused grants but keeps the expired nonce backing an active lease.
+  await owner.mintGrant('quota',runId,browser.sessionId);
+  assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM grant_nonces'))[0].n,2);
+  await owner.agentSession('quota',agent.agentId,agent.agentToken,runId,'check:'+nonce,runId);
+  await owner.endTerminalSession('quota',runId);
+  await owner.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<127)
+    INSERT INTO terminal_sessions (terminal_session_id,owner_id,agent_id,run_id,status,created_at,ended_at) SELECT 'quota-session-'||x,'quota',?,?,'ended',?,? FROM n`,[agent.agentId,runId,Date.now(),Date.now()]);
+  await rpcReject(owner,'startRunSession',['quota',runId],/resource_limit/);
+  assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM terminal_sessions WHERE run_id = ?',[runId]))[0].n,128);
+  await owner.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<31)
+    INSERT INTO agent_runs (run_id,owner_id,agent_id,machine_name,workspace_label,status,created_at,last_seen_at) SELECT 'quota-run-'||x,'quota',?,'box','work','offline',?,? FROM n`,[agent.agentId,Date.now(),Date.now()]);
+  await rpcReject(owner,'agentRun',['quota',agent.agentId,agent.agentToken,{operation:'start',runId:'another_run_123456789',machineName:'box',workspaceLabel:'work'}],/resource_limit/);
+  assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM agent_runs'))[0].n,32);
+  await owner.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<127)
+    INSERT INTO agents (agent_id,owner_id,machine_name,token_hash,grant_key,created_at,token_expires_at) SELECT 'quota-agent-'||x,'quota','box','hash','key',?,? FROM n`,[Date.now(),Date.now()+86400000]);
+  await rpcReject(owner,'registerAgent',['quota','overflow'],/resource_limit/);
+  const count=(await owner.sqlForTest('SELECT COUNT(*) n FROM terminal_sessions'))[0].n;
+  await owner.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<?)
+    INSERT INTO terminal_sessions (terminal_session_id,owner_id,agent_id,status,created_at) SELECT 'owner-session-'||x,'quota',?,'ended',? FROM n`,[4096-count,agent.agentId,Date.now()]);
+  await rpcReject(owner,'agentSession',['quota',agent.agentId,agent.agentToken],/resource_limit/);
+  assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM terminal_sessions'))[0].n,4096);
+  await owner.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<63)
+    INSERT INTO browser_sessions (session_id,owner_id,expires_at,created_at) SELECT 'quota-browser-'||x,'quota',?,? FROM n`,[Date.now()+86400000,Date.now()]);
+  await rpcReject(owner,'createBrowserSession',['quota'],/resource_limit/);
+  await owner.sqlForTest('UPDATE browser_sessions SET expires_at = 0 WHERE session_id = ?',[browser.sessionId]);
+  await owner.createBrowserSession('quota');assert.equal((await owner.sqlForTest('SELECT COUNT(*) n FROM browser_sessions'))[0].n,64);
+ }finally{await mf.dispose()}
+});
+
+test('shared pairing hub storage remains bounded across new IPs and attempts',async()=>{
+ const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
+ try{
+  const ns=await mf.getDurableObjectNamespace('STATE'),hub=ns.get(ns.idFromName('pairing'));
+  await hub.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<4096)
+    INSERT INTO pairing_rate (bucket,count,window_start) SELECT 'bucket-'||x,1,? FROM n`,[Date.now()]);
+  await rpcReject(hub,'limitRequest',['127.0.0.1','poll'],/resource_limit/);
+  assert.equal((await hub.sqlForTest('SELECT COUNT(*) n FROM pairing_rate'))[0].n,4096);
+  await hub.sqlForTest('UPDATE pairing_rate SET window_start = 0');await hub.limitRequest('127.0.0.1','poll');
+  assert.equal((await hub.sqlForTest('SELECT COUNT(*) n FROM pairing_rate'))[0].n,2);
+  await hub.sqlForTest(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<512)
+    INSERT INTO pairing_attempts (attempt_id,code,code_hash,cli_secret_hash,machine_name,client_ip,status,created_at,expires_at) SELECT 'attempt-'||x,'code-'||x,'hash','hash','box','ip','pending',?,? FROM n`,[Date.now(),Date.now()+600000]);
+  await rpcReject(hub,'startPairing',['box','127.0.0.1'],/resource_limit/);
+  assert.equal((await hub.sqlForTest('SELECT COUNT(*) n FROM pairing_attempts'))[0].n,512);
  }finally{await mf.dispose()}
 });

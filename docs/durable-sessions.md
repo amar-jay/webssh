@@ -1,5 +1,7 @@
 # Durable sessions (milestone 4)
 
+See [access and lifecycle controls](access-lifecycle.md) for expiry/revocation bounds, quotas, untrusted-output policy, and offline cleanup commands.
+
 ## Use
 
 ```sh

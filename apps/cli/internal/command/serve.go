@@ -24,9 +24,10 @@ import (
 
 func serveCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "serve",
-		Usage:     "Serve terminal sessions in a workspace directory",
-		ArgsUsage: "<path>",
+		Name:        "serve",
+		Usage:       "Serve terminal sessions in a workspace directory",
+		Description: "With tmux (default), Ctrl+C stops the agent but preserves remote work. Terminate from the dashboard or use webssh sessions after stopping serve. With --backend ephemeral, disconnect or Ctrl+C kills shells.",
+		ArgsUsage:   "<path>",
 		Arguments: []cli.Argument{
 			&cli.StringArg{
 				Name:      "path",
@@ -139,14 +140,14 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 		opts.AllowDevToken = true
 	default:
-		return credErr
+		return errors.New("could not read paired credentials; check permissions and pair again")
 	}
 	if opts.Backend == "tmux" {
 		stateDir := cmd.String("state-dir")
 		if stateDir == "" {
 			stateDir = filepath.Join(filepath.Dir(credFile), "sessions")
 		}
-		scope := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", creds.Origin, creds.OwnerID, creds.AgentID, workspace, cfg.Shell)
+		scope := managerScope(creds, cfg, workspace)
 		manager, openErr := agent.OpenSessionManager(stateDir, scope)
 		if openErr != nil {
 			return openErr
@@ -167,9 +168,9 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		update.Generation = generation
 		update.Backend = opts.Backend
 		if opts.Manager != nil {
-			update.RecoveredIDs, update.EndedIDs = opts.Manager.Snapshot()
+			update.RecoveredIDs, update.EndedIDs = opts.Manager.SnapshotContext(c)
 			for _, id := range update.EndedIDs {
-				if err := opts.Manager.Terminate(id); err != nil {
+				if err := opts.Manager.TerminateContext(c, id); err != nil {
 					return err
 				}
 			}
@@ -184,7 +185,7 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 		if opts.Manager != nil {
 			for _, id := range result.TerminateIDs {
-				if err := opts.Manager.Terminate(id); err != nil {
+				if err := opts.Manager.TerminateContext(c, id); err != nil {
 					return err
 				}
 				pendingTerminated = append(pendingTerminated, id)
@@ -249,14 +250,14 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 				}{protocol.Version, browserSessionID, browserURL})
 			}
 			if !devToken {
-				_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\nKeep this command running · Ctrl+C to stop\n", cfg.MachineName, info.Workspace, browserURL)
+				_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\n%s\n", cfg.MachineName, info.Workspace, browserURL, persistenceMessage(opts.Backend))
 				return err
 			}
 		}
 		if cmd.Bool("json") {
 			return json.NewEncoder(os.Stdout).Encode(info)
 		}
-		_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\nDevelopment token · Ctrl+C to stop\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token)
+		_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\nDevelopment token\n%s\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token, persistenceMessage(opts.Backend))
 		return err
 	})
 	cancel()

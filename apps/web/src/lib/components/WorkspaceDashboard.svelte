@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Dialog } from "bits-ui";
   import { onMount } from "svelte";
   import { invalidateAll } from "$app/navigation";
   import type {
@@ -95,6 +96,29 @@
                 : "Offline"}</span
             >
           </div>
+          <Dialog.Root>
+            <Dialog.Trigger class="button quiet">Revoke access</Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay class="dialog-overlay" />
+              <Dialog.Content class="dialog-content">
+                <Dialog.Title class="dialog-title"
+                  >Revoke {agent.machineName}?</Dialog.Title
+                >
+                <Dialog.Description class="muted"
+                  >Current browser connections will detach and new connections
+                  will be blocked. Tmux work stays on the machine. Pair the
+                  machine again to restore access.</Dialog.Description
+                >
+                <form method="POST" action="?/revoke">
+                  <input type="hidden" name="agentId" value={agent.agentId} />
+                  <button type="submit" class="button primary"
+                    >Revoke access</button
+                  >
+                  <Dialog.Close class="button quiet">Cancel</Dialog.Close>
+                </form>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         </div>
         {#if !workspaces.length}<p class="muted small">
             Start the agent in your workspace to make it available here.

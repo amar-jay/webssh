@@ -64,8 +64,15 @@ export const POST: RequestHandler = async ({ request, platform }) => {
       ),
     );
   } catch (error) {
-    return error instanceof Error && error.message === "pairing_rate_limited"
-      ? jsonError("rate_limited", 429)
-      : jsonError("unauthorized", 401);
+    const code = error instanceof Error ? error.message : "";
+    if (code === "resource_limit") return jsonError("resource_limit", 429);
+    if (
+      ["session_ended", "session_expired", "session_unavailable"].includes(code)
+    )
+      return jsonError(code, 409);
+    return jsonError(
+      code === "pairing_rate_limited" ? "rate_limited" : "unauthorized",
+      code === "pairing_rate_limited" ? 429 : 401,
+    );
   }
 };

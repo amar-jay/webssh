@@ -49,6 +49,7 @@ export async function signSession(payload: SessionPayload, secret: string): Prom
 }
 
 export async function verifySession(token: string, secret: string): Promise<SessionPayload | null> {
+  if(token.length>4096)return null;
   const parts = token.split('.');
   if (parts.length !== 2) return null;
   const [body, mac] = parts;

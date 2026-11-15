@@ -7,6 +7,8 @@ import type { SessionTerminal } from "../terminal/create-terminal.js";
 
 type Controller = Pick<SessionTerminal, "terminal">;
 const problems: Record<string, string> = {
+  resource_limit:
+    "Workspace capacity reached. Wait for unused grants to expire, or choose an existing session from the overview.",
   unauthorized:
     "Sign in at / with the GitHub account used to pair this machine, then reload.",
   not_found:

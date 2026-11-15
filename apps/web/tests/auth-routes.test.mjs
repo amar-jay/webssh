@@ -77,3 +77,16 @@ test('session resolution authenticates owner and keeps descriptors out of error 
  assert.equal(failure.status,503);assert.deepEqual(await failure.json(),{error:'session_unavailable'});
  event.locals.user=null;assert.equal((await grant.POST(event)).status,401);
 });
+
+test('session resolver returns a fixed quota error without backend diagnostics',async()=>{
+ const namespace={idFromName:name=>name,get:()=>({getTerminalSession:async()=>({terminalSessionId:'opaque'}),resolveSession:async()=>{throw Error('resource_limit')}})};
+ const response=await grant.POST({locals:{user:{ownerId:'42',sessionId:'browser'}},params:{session_id:'opaque'},platform:{env:{WEBSSH_STATE:namespace}}});
+ assert.equal(response.status,429);assert.equal(response.headers.get('cache-control'),'no-store');assert.deepEqual(await response.json(),{error:'resource_limit'});
+});
+
+test('dashboard revocation derives the owner from the session, never posted identity',async()=>{
+ const root=await moduleAt('src/routes/+page.server.ts');let called=false;
+ const namespace={idFromName:name=>{assert.equal(name,'owner:42');return name;},get:()=>({revokeAgent:async(owner,id)=>{called=true;assert.equal(owner,'42');assert.equal(id,'agent-123456789012');return true;}})};
+ const response=await root.actions.revoke({locals:{user:{ownerId:'42',sessionId:'browser'}},platform:{env:{WEBSSH_STATE:namespace}},request:new Request('https://webssh.example/?/revoke',{method:'POST',body:new URLSearchParams({agentId:'agent-123456789012',ownerId:'different-owner'})})});
+ assert(called);assert.match(response.message,/Access revoked/);
+});

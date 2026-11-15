@@ -30,7 +30,7 @@ func retryControl(ctx context.Context, operation func(context.Context) error) er
 			return nil
 		}
 		// Permanent authorization/state failures must not be retried.
-		if err.Error() == "unauthorized" || err.Error() == "session_unavailable" {
+		if err.Error() == "resource_limit" || err.Error() == "unauthorized" || err.Error() == "session_unavailable" {
 			return err
 		}
 	}

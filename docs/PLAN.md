@@ -1,6 +1,6 @@
 # WebSSH completion plan
 
-Status: updated 2026-11-15. Milestones 3 and 4 are complete and deployed. Milestones 5 and 6 and the release gates below remain open; completing the implementation does not imply live browser acceptance has been verified.
+Status: updated 2026-11-15. Milestones 3 and 4 are complete and deployed. Milestone 5 is implemented with automated/native/parser verification; milestone 6 and live browser release gates remain open; completing the implementation does not imply live browser acceptance has been verified.
 
 ## Target outcome
 
@@ -88,6 +88,8 @@ Depends on milestones 1 and 2.
 
 ## 5. Complete access and lifecycle controls
 
+**Status: implemented.** Expiry/revocation enforcement, bounded resources/storage, scoped cleanup, untrusted terminal-output policies, and lifecycle concurrency tests are in place. See [access and lifecycle controls](access-lifecycle.md). Live visual browser checks remain release gates.
+
 Depends on pairing and persistent sessions.
 
 - Enforce grant/session expiry at attach and define behavior for expiry during an active connection.
@@ -151,4 +153,6 @@ Proceed milestone by milestone with reviewable commits and update this plan as d
 
 **Verification limit:** live signed-in browser reload/sleep and deployed relay-outage acceptance remain unverified because no browser was available. Keep these checks in the release gates; automated/native tests and production route/asset smoke checks do not replace them.
 
-**Next implementation task:** milestone 5, complete access and lifecycle controls.
+**Milestone 5 implemented:** active lease revalidation and revocation, cancellation-safe native I/O, transactional storage quotas, scoped offline cleanup, and shared terminal output/link/clipboard policies. Native concurrency, real SQLite, and real xterm parser tests verify the controls. See [access and lifecycle controls](access-lifecycle.md).
+
+**Next implementation task:** milestone 6, deployment and distribution reliability.

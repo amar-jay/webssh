@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -10,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,7 +88,15 @@ func OpenSessionManager(base, scope string) (*SessionManager, error) {
 		m.Close()
 		return nil, errors.New("session ledger must be a private regular file")
 	}
-	data, err := os.ReadFile(path)
+	var data []byte
+	ledgerFile, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW, 0)
+	if err == nil {
+		data, err = io.ReadAll(io.LimitReader(ledgerFile, 65537))
+		ledgerFile.Close()
+		if len(data) > 65536 {
+			err = errors.New("ledger too large")
+		}
+	}
 	if os.IsNotExist(err) {
 		id, e := randomHandle()
 		if e != nil {
@@ -96,9 +106,11 @@ func OpenSessionManager(base, scope string) (*SessionManager, error) {
 		m.ledger = sessionLedger{Version: 1, Scope: identity, RunID: id, Sessions: map[string]sessionEntry{}}
 		err = m.save()
 	} else if err == nil {
-		err = json.Unmarshal(data, &m.ledger)
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		err = decoder.Decode(&m.ledger)
 	}
-	if err != nil || m.ledger.Version != 1 || m.ledger.Scope != identity || !sessionHandle.MatchString(m.ledger.RunID) || m.ledger.Sessions == nil {
+	if err != nil || m.ledger.Version != 1 || m.ledger.Scope != identity || !sessionHandle.MatchString(m.ledger.RunID) || m.ledger.Sessions == nil || len(m.ledger.Sessions) > 128 {
 		m.Close()
 		return nil, errors.New("session ledger does not match this agent and workspace")
 	}
@@ -154,13 +166,31 @@ func ownedName(id string) string {
 func (m *SessionManager) command(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+	return m.commandContext(ctx, args...)
+}
+func (m *SessionManager) commandContext(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	cmd := exec.CommandContext(ctx, m.tmux, append([]string{"-S", m.socket, "-f", "/dev/null"}, args...)...)
 	cmd.Env = cleanEnvironment("xterm-256color")
+	cmd.WaitDelay = 250 * time.Millisecond
 	return cmd.Output()
 }
-func (m *SessionManager) owned(e sessionEntry) bool {
-	data, err := m.command("show-environment", "-t", "="+e.Name, "WEBSSH_OWNER_MARKER")
+func (m *SessionManager) ownedContext(ctx context.Context, e sessionEntry) bool {
+	data, err := m.commandContext(ctx, "show-environment", "-t", "="+e.Name, "WEBSSH_OWNER_MARKER")
 	return err == nil && strings.TrimSpace(string(data)) == "WEBSSH_OWNER_MARKER="+e.Marker
+}
+func (m *SessionManager) owned(e sessionEntry) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.ownedContext(ctx, e)
+}
+func (m *SessionManager) hasContext(ctx context.Context, e sessionEntry) bool {
+	_, err := m.commandContext(ctx, "has-session", "-t", "="+e.Name)
+	return err == nil
 }
 func (m *SessionManager) has(e sessionEntry) bool {
 	_, err := m.command("has-session", "-t", "="+e.Name)
@@ -179,8 +209,18 @@ func (m *SessionManager) Acquire(id string) (func(), error) {
 	return func() { m.mu.Lock(); delete(m.controllers, id); m.mu.Unlock() }, nil
 }
 func (m *SessionManager) Attach(id string, create bool, opts Options, term string, cols, rows int) (*process, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.AttachContext(ctx, id, create, opts, term, cols, rows)
+}
+func (m *SessionManager) AttachContext(ctx context.Context, id string, create bool, opts Options, term string, cols, rows int) (*process, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if ctx.Err() != nil {
+		return nil, errors.New("backend_unavailable")
+	}
 	e, exists := m.ledger.Sessions[id]
 	if exists && e.Ended {
 		return nil, errors.New("session_ended")
@@ -203,21 +243,24 @@ func (m *SessionManager) Attach(id string, create bool, opts Options, term strin
 		e = sessionEntry{Name: ownedName(id), Marker: marker + marker2}
 		m.ledger.Sessions[id] = e
 		// Persist ownership before launching any process. Never adopt a name collision.
-		if m.has(e) {
+		if m.hasContext(ctx, e) {
 			delete(m.ledger.Sessions, id)
 			return nil, errors.New("backend_unavailable")
 		}
 		if err = m.save(); err != nil {
 			return nil, err
 		}
-		if _, err = m.command("new-session", "-d", "-s", e.Name, "-c", opts.Workspace, "-x", strconv.Itoa(cols), "-y", strconv.Itoa(rows), "-e", "WEBSSH_OWNER_MARKER="+e.Marker, "-e", "WEBSSH=1", "--", opts.Shell, "-i"); err != nil {
+		if _, err = m.commandContext(ctx, "new-session", "-d", "-s", e.Name, "-c", opts.Workspace, "-x", strconv.Itoa(cols), "-y", strconv.Itoa(rows), "-e", "WEBSSH_OWNER_MARKER="+e.Marker, "-e", "WEBSSH=1", "--", opts.Shell, "-i"); err != nil {
 			return nil, errors.New("shell_start_failed")
 		}
-		if _, err = m.command("set-window-option", "-t", "="+e.Name, "remain-on-exit", "on"); err != nil {
+		if _, err = m.commandContext(ctx, "set-window-option", "-t", "="+e.Name, "remain-on-exit", "on"); err != nil {
 			return nil, errors.New("backend_unavailable")
 		}
 	}
-	if !m.owned(e) {
+	if !m.ownedContext(ctx, e) {
+		return nil, errors.New("backend_unavailable")
+	}
+	if ctx.Err() != nil {
 		return nil, errors.New("backend_unavailable")
 	}
 	// No -d: a new client must never silently take over another controller.
@@ -226,12 +269,19 @@ func (m *SessionManager) Attach(id string, create bool, opts Options, term strin
 }
 
 // State never equates a disconnected tmux client with a dead pane.
-func (m *SessionManager) State(id string) (ended bool, code int, known bool, err error) {
+func (m *SessionManager) State(id string) (bool, int, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.StateContext(ctx, id)
+}
+func (m *SessionManager) StateContext(ctx context.Context, id string) (bool, int, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.state(id)
+	return m.state(ctx, id)
 }
-func (m *SessionManager) state(id string) (bool, int, bool, error) {
+func (m *SessionManager) state(ctx context.Context, id string) (bool, int, bool, error) {
 	e, exists := m.ledger.Sessions[id]
 	if !exists {
 		return false, 0, false, errors.New("session_not_found")
@@ -239,10 +289,10 @@ func (m *SessionManager) state(id string) (bool, int, bool, error) {
 	if e.Ended {
 		return true, 0, false, nil
 	}
-	if !m.owned(e) {
+	if !m.ownedContext(ctx, e) {
 		return false, 0, false, errors.New("backend_unavailable")
 	}
-	data, err := m.command("list-panes", "-s", "-t", "="+e.Name, "-F", "#{pane_dead} #{pane_dead_status}")
+	data, err := m.commandContext(ctx, "list-panes", "-s", "-t", "="+e.Name, "-F", "#{pane_dead} #{pane_dead_status}")
 	if err != nil {
 		return false, 0, false, errors.New("backend_unavailable")
 	}
@@ -260,6 +310,13 @@ func (m *SessionManager) state(id string) (bool, int, bool, error) {
 	return true, exitCode, len(lines) == 1, nil
 }
 func (m *SessionManager) Terminate(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.TerminateContext(ctx, id)
+}
+func (m *SessionManager) TerminateContext(ctx context.Context, id string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e, exists := m.ledger.Sessions[id]
@@ -269,13 +326,18 @@ func (m *SessionManager) Terminate(id string) error {
 	if e.Ended {
 		return nil
 	}
-	if m.has(e) {
-		if !m.owned(e) {
+	if m.hasContext(ctx, e) {
+		if !m.ownedContext(ctx, e) {
 			return errors.New("backend_unavailable")
 		}
-		if _, err := m.command("kill-session", "-t", "="+e.Name); err != nil {
+		if _, err := m.commandContext(ctx, "kill-session", "-t", "="+e.Name); err != nil {
 			return errors.New("backend_unavailable")
 		}
+	} else {
+		return errors.New("backend_unavailable")
+	}
+	if ctx.Err() != nil {
+		return errors.New("backend_unavailable")
 	}
 	e.Ended = true
 	m.ledger.Sessions[id] = e
@@ -285,17 +347,27 @@ func (m *SessionManager) Terminate(id string) error {
 // Snapshot discovers only ledger entries on our private socket; foreign sessions
 // and marker mismatches are never adopted, attached, or terminated.
 func (m *SessionManager) Snapshot() (live, ended []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return m.SnapshotContext(ctx)
+}
+func (m *SessionManager) SnapshotContext(ctx context.Context) (live, ended []string) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for id, e := range m.ledger.Sessions {
+		if ctx.Err() != nil {
+			break
+		}
 		if e.Ended {
 			ended = append(ended, id)
 			continue
 		}
-		if !m.owned(e) {
+		if !m.ownedContext(ctx, e) {
 			continue
 		}
-		dead, _, _, err := m.state(id)
+		dead, _, _, err := m.state(ctx, id)
 		if err != nil {
 			continue
 		}
@@ -308,5 +380,33 @@ func (m *SessionManager) Snapshot() (live, ended []string) {
 	return
 }
 func (m *SessionManager) String() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return fmt.Sprintf("tmux session manager (%d sessions)", len(m.ledger.Sessions))
+}
+
+// SessionInfo exposes only stable IDs and lifecycle state, never names, markers or credentials.
+type SessionInfo struct {
+	ID     string
+	Status string
+}
+
+func (m *SessionManager) List(ctx context.Context) ([]SessionInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []SessionInfo
+	for id := range m.ledger.Sessions {
+		if ctx.Err() != nil {
+			return nil, errors.New("backend_unavailable")
+		}
+		dead, _, _, err := m.state(ctx, id)
+		status := "running"
+		if err != nil {
+			status = "unavailable"
+		} else if dead {
+			status = "ended"
+		}
+		result = append(result, SessionInfo{ID: id, Status: status})
+	}
+	return result, nil
 }

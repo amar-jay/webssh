@@ -186,7 +186,7 @@ func (a *Agent) Serve(ctx context.Context, listener net.Listener) error {
 				defer conn.Close()
 				stop := context.AfterFunc(ctx, func() { conn.Close() })
 				defer stop()
-				a.handle(conn)
+				a.handle(ctx, conn)
 			}()
 		default:
 			conn.Close()

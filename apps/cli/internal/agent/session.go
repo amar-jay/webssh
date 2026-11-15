@@ -34,14 +34,16 @@ func (w *writer) fail(code string) {
 	_ = w.send(protocol.Message{Type: "error", Error: code, Retryable: code == "session_busy"})
 }
 
-func (a *Agent) authorize(token string) bool {
+func (a *Agent) authorize(token string) bool { return a.authorizeContext(context.Background(), token) }
+
+func (a *Agent) authorizeContext(ctx context.Context, token string) bool {
 	// Grant-shaped tokens never fall back to the development per-run secret.
 	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
 		sessionID, err := a.opts.Grants.Verify(token, time.Now())
 		if err != nil || (!a.opts.AllowRunSessions && sessionID != a.opts.SessionID) {
 			return false
 		}
-		check, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		check, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		return a.opts.CheckAccess != nil && a.opts.CheckAccess(check, sessionID, strings.Split(token, ".")[3]) == nil
 	}
@@ -51,7 +53,12 @@ func (a *Agent) authorize(token string) bool {
 	return false
 }
 
-func (a *Agent) handle(conn net.Conn) {
+func (a *Agent) handle(parent context.Context, conn net.Conn) {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
+
 	out := &writer{conn: conn}
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	hello, err := protocol.Read(conn)
@@ -112,6 +119,15 @@ func (a *Agent) handle(conn net.Conn) {
 			return
 		}
 	}
+	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
+		if !a.opts.Grants.Authentic(hello.Token, time.Now()) {
+			out.fail("unauthorized")
+			return
+		}
+	} else if !a.opts.AllowDevToken || a.opts.Token == "" || subtle.ConstantTimeCompare([]byte(hello.Token), []byte(a.opts.Token)) != 1 {
+		out.fail("unauthorized")
+		return
+	}
 	a.controllerMu.Lock()
 	if a.controlled[sessionID] {
 		a.controllerMu.Unlock()
@@ -130,7 +146,7 @@ func (a *Agent) handle(conn net.Conn) {
 		defer release()
 	}
 	ended := false
-	if !a.authorize(hello.Token) {
+	if !a.authorizeContext(ctx, hello.Token) {
 		out.fail("unauthorized")
 		return
 	}
@@ -139,7 +155,7 @@ func (a *Agent) handle(conn net.Conn) {
 	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
 		parts := strings.Split(hello.Token, ".")
 		nonce := parts[3]
-		accessCtx, accessCancel := context.WithCancel(context.Background())
+		accessCtx, accessCancel := context.WithCancel(ctx)
 		stopped := make(chan struct{})
 		go func() {
 			defer close(stopped)
@@ -154,7 +170,11 @@ func (a *Agent) handle(conn net.Conn) {
 					err := a.opts.CheckAccess(check, sessionID, "check:"+nonce)
 					cancel()
 					if err != nil {
+						cancel()
 						conn.Close()
+						if err.Error() == "session_ended" && a.opts.Manager != nil {
+							_ = a.opts.Manager.Terminate(sessionID)
+						}
 						return
 					}
 				}
@@ -177,7 +197,7 @@ func (a *Agent) handle(conn net.Conn) {
 	}
 	var child *process
 	if a.opts.Backend == "tmux" {
-		child, err = a.opts.Manager.Attach(sessionID, hello.Type == "create", a.opts, hello.Term, hello.Cols, hello.Rows)
+		child, err = a.opts.Manager.AttachContext(ctx, sessionID, hello.Type == "create", a.opts, hello.Term, hello.Cols, hello.Rows)
 	} else {
 		child, err = startProcess(a.opts, hello.Term, hello.Cols, hello.Rows)
 	}
@@ -196,6 +216,25 @@ func (a *Agent) handle(conn net.Conn) {
 	go func() { waitErr = child.cmd.Wait(); close(waitDone) }()
 	// Always close the PTY, kill live process groups, and reap the shell.
 	defer func() { child.stop(); <-waitDone }()
+	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
+		check, done := context.WithTimeout(ctx, 3*time.Second)
+		err := a.opts.CheckAccess(check, sessionID, "check:"+strings.Split(hello.Token, ".")[3])
+		done()
+		if err != nil {
+			if err.Error() == "session_ended" && a.opts.Manager != nil {
+				_ = a.opts.Manager.Terminate(sessionID)
+				out.fail("session_ended")
+			} else {
+				out.fail("unauthorized")
+			}
+			return
+		}
+	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
 	if err := out.send(protocol.Message{Type: "ready", Version: protocol.Version, SessionID: sessionID, Backend: a.opts.Backend, Capabilities: caps}); err != nil {
 		return
 	}
@@ -242,6 +281,10 @@ func (a *Agent) handle(conn net.Conn) {
 					inputDone <- errors.New("invalid_message")
 					return
 				}
+				if err := child.file.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
+					inputDone <- err
+					return
+				}
 				if err := writeAll(child.file, m.Data); err != nil {
 					inputDone <- err
 					return
@@ -286,10 +329,12 @@ func (a *Agent) handle(conn net.Conn) {
 		err   error
 	}
 	paneEnd := make(chan processEnd, 1)
-	watchCtx, watchCancel := context.WithCancel(context.Background())
-	defer watchCancel()
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	watchDone := make(chan struct{})
+	defer func() { watchCancel(); <-watchDone }()
 	if a.opts.Backend == "tmux" {
 		go func() {
+			defer close(watchDone)
 			ticker := time.NewTicker(500 * time.Millisecond)
 			defer ticker.Stop()
 			for {
@@ -297,7 +342,7 @@ func (a *Agent) handle(conn net.Conn) {
 				case <-watchCtx.Done():
 					return
 				case <-ticker.C:
-					dead, code, known, err := a.opts.Manager.State(sessionID)
+					dead, code, known, err := a.opts.Manager.StateContext(watchCtx, sessionID)
 					if dead || err != nil {
 						paneEnd <- processEnd{code, known, err}
 						return
@@ -306,10 +351,15 @@ func (a *Agent) handle(conn net.Conn) {
 			}
 		}()
 	}
+	if a.opts.Backend != "tmux" {
+		close(watchDone)
+	}
 	select {
+	case <-ctx.Done():
+		return
 	case <-waitDone:
 		if a.opts.Backend == "tmux" {
-			dead, code, known, stateErr := a.opts.Manager.State(sessionID)
+			dead, code, known, stateErr := a.opts.Manager.StateContext(watchCtx, sessionID)
 			if stateErr != nil {
 				out.fail("backend_unavailable")
 			} else if dead {

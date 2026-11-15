@@ -99,7 +99,7 @@ func (c *Client) Poll(ctx context.Context, code, cliSecret string) (credentials.
 		if out.Error != "" {
 			return credentials.File{}, "", errors.New(out.Error)
 		}
-		return credentials.File{}, "", fmt.Errorf("unexpected pairing status %q", out.Status)
+		return credentials.File{}, "", errors.New("unexpected pairing status")
 	}
 }
 
