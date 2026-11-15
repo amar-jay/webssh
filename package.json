@@ -14,8 +14,12 @@
     "preview": "pnpm --filter @webssh/web preview",
     "cli:verify": "cd apps/cli && go mod verify",
     "wasm:build": "pnpm --filter @webssh/transport build:wasm",
+    "icons": "node scripts/build-icons.mjs",
     "go:test": "GOMAXPROCS=2 go test -p 1 ./apps/cli/... ./packages/transport/... ./packages/protocol/...",
     "go:vet": "GOMAXPROCS=2 go vet -p 1 ./apps/cli/... ./packages/transport/... ./packages/protocol/...",
     "test:browser": "GOMAXPROCS=2 WEBSSH_BROWSER_TEST=1 go test -p 1 -timeout 150s ./apps/cli/internal/agent -run ^TestBrowserTerminal$ -v"
+  },
+  "devDependencies": {
+    "sharp": "0.35.5"
   }
 }

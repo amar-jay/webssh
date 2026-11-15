@@ -105,7 +105,7 @@ func TestTmuxQuestionDefaultsToLocalConfig(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	m := newModel(settings.Defaults(), "unused", nil)
-	if m.inputs[2].Value() != "none" {
+	if m.inputs[tmuxField].Value() != "none" {
 		t.Fatal("missing config should default to none")
 	}
 	local := filepath.Join(home, ".tmux.conf")
@@ -113,8 +113,8 @@ func TestTmuxQuestionDefaultsToLocalConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	m = newModel(settings.Defaults(), "unused", nil)
-	if m.inputs[2].Value() != local {
-		t.Fatalf("local config not prefilled: %q", m.inputs[2].Value())
+	if m.inputs[tmuxField].Value() != local {
+		t.Fatalf("local config not prefilled: %q", m.inputs[tmuxField].Value())
 	}
 	xdg := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
@@ -126,16 +126,16 @@ func TestTmuxQuestionDefaultsToLocalConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	m = newModel(settings.Defaults(), "unused", nil)
-	if m.inputs[2].Value() != preferred {
+	if m.inputs[tmuxField].Value() != preferred {
 		t.Fatal("XDG local config not preferred")
 	}
 	cfg := settings.Defaults()
 	cfg.TmuxConfig = "none"
-	if got := newModel(cfg, "unused", nil).inputs[2].Value(); got != "none" {
+	if got := newModel(cfg, "unused", nil).inputs[tmuxField].Value(); got != "none" {
 		t.Fatal("explicit none was replaced")
 	}
 	cfg.TmuxConfig = local
-	if got := newModel(cfg, "unused", nil).inputs[2].Value(); got != local {
+	if got := newModel(cfg, "unused", nil).inputs[tmuxField].Value(); got != local {
 		t.Fatal("explicit path was replaced")
 	}
 }
@@ -152,14 +152,14 @@ func TestTmuxQuestionValidatesAndPersistsSelection(t *testing.T) {
 		t.Run(choice, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "config.toml")
 			m := newModel(settings.Defaults(), path, func(c settings.Config) error { return settings.Save(path, c) })
-			m.focused = 2
-			m.inputs[2].SetValue(filepath.Join(home, "missing.conf"))
+			m.focused = tmuxField
+			m.inputs[tmuxField].SetValue(filepath.Join(home, "missing.conf"))
 			next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			m = next.(model)
-			if m.focused != 2 || m.err == nil {
+			if m.focused != tmuxField || m.err == nil {
 				t.Fatal("missing file advanced")
 			}
-			m.inputs[2].SetValue(choice)
+			m.inputs[tmuxField].SetValue(choice)
 			next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			m = next.(model)
 			if m.focused != len(m.inputs) || m.err != nil {
@@ -181,5 +181,49 @@ func TestTmuxQuestionValidatesAndPersistsSelection(t *testing.T) {
 				t.Fatalf("selection not persisted: %q %v", loaded.TmuxConfig, err)
 			}
 		})
+	}
+}
+
+func TestLoggingQuestionsPrefillAndPersist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := settings.Defaults()
+	cfg.LogLevel, cfg.LogFormat = "warn", "json"
+	m := newModel(cfg, path, func(c settings.Config) error { return settings.Save(path, c) })
+	if m.inputs[levelField].Value() != "warn" || m.inputs[formatField].Value() != "json" {
+		t.Fatal("saved logging settings not prefilled")
+	}
+	m.inputs[levelField].SetValue("debug")
+	m.inputs[formatField].SetValue("text")
+	m.focused = len(m.inputs)
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	if cmd == nil {
+		t.Fatal("save did not start")
+	}
+	next, _ = next.(model).Update(cmd())
+	if !next.(model).saved {
+		t.Fatal("save failed")
+	}
+	loaded, err := settings.Load(path)
+	if err != nil || loaded.LogLevel != "debug" || loaded.LogFormat != "text" {
+		t.Fatalf("logging settings not persisted: %+v, %v", loaded, err)
+	}
+}
+
+func TestInvalidLogSettingStaysOnQuestion(t *testing.T) {
+	m := newModel(settings.Defaults(), "unused", nil)
+	m.inputs[levelField].SetValue("trace")
+	m.focused = levelField
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = next.(model)
+	if m.focused != levelField || m.err == nil {
+		t.Fatal("invalid log level advanced")
+	}
+	m.inputs[levelField].SetValue("warn")
+	m.inputs[formatField].SetValue("csv")
+	m.focused = formatField
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = next.(model)
+	if m.focused != formatField || m.err == nil {
+		t.Fatal("invalid log format advanced")
 	}
 }

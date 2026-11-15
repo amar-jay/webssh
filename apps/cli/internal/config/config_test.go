@@ -120,3 +120,30 @@ func TestPathUsesHomeNotXDG(t *testing.T) {
 		t.Fatalf("unexpected path: %s", path)
 	}
 }
+func TestLogSettingsRoundTripAndValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	c := Defaults()
+	if c.LogLevel != "info" || c.LogFormat != "auto" {
+		t.Fatalf("defaults: %q %q", c.LogLevel, c.LogFormat)
+	}
+	c.LogLevel, c.LogFormat = "debug", "json"
+	if err := Save(path, c); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil || loaded.LogLevel != "debug" || loaded.LogFormat != "json" {
+		t.Fatalf("round trip: %+v, %v", loaded, err)
+	}
+	for _, bad := range []Config{
+		{Version: 1, MachineName: "m", Shell: "/bin/sh", LogLevel: "trace"},
+		{Version: 1, MachineName: "m", Shell: "/bin/sh", LogFormat: "csv"},
+	} {
+		if err := bad.Validate(); err == nil {
+			t.Fatalf("accepted %+v", bad)
+		}
+	}
+	legacy := Config{Version: 1, MachineName: "m", Shell: "/bin/sh"}
+	if legacy.LogLevelOrDefault() != "info" || legacy.LogFormatOrDefault() != "auto" {
+		t.Fatal("settings written before logging existed must keep working")
+	}
+}

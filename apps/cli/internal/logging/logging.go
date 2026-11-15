@@ -27,17 +27,26 @@ func From(ctx context.Context) *slog.Logger {
 	return logger
 }
 
-// FromEnvironment reads optional diagnostic settings without adding CLI flags.
-func FromEnvironment(output io.Writer) (*slog.Logger, error) {
-	format := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_FORMAT")))
-	level := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
-	if format == "" {
-		format = "auto"
+// FromSettings builds the CLI logger from saved settings. Files written before
+// logging settings existed fall back to the product defaults.
+func FromSettings(
+	output io.Writer,
+	format,
+	level string,
+) (*slog.Logger, error) {
+	return New(
+		output,
+		settingOrDefault(format, "auto"),
+		settingOrDefault(level, "info"),
+	)
+}
+
+// settingOrDefault normalises case and padding; empty means the default.
+func settingOrDefault(value, fallback string) string {
+	if normalised := strings.ToLower(strings.TrimSpace(value)); normalised != "" {
+		return normalised
 	}
-	if level == "" {
-		level = "info"
-	}
-	return New(output, format, level)
+	return fallback
 }
 
 func New(output io.Writer, format, level string) (*slog.Logger, error) {

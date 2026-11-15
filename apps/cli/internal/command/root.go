@@ -27,7 +27,8 @@ func newCommand(configured func(*slog.Logger)) *cli.Command {
 		Version: Version + " (" + Commit + "; protocol 2, bridge 1)",
 		Usage:   "browser and native terminals for remote machines",
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			logger, err := logging.FromEnvironment(cmd.ErrWriter)
+			format, level := savedLogSettings()
+			logger, err := logging.FromSettings(cmd.ErrWriter, format, level)
 			if err != nil {
 				return ctx, err
 			}
@@ -53,7 +54,8 @@ func Run(args []string) error {
 }
 
 func run(args []string, stderr io.Writer) error {
-	logger, setupErr := logging.FromEnvironment(stderr)
+	format, level := savedLogSettings()
+	logger, setupErr := logging.FromSettings(stderr, format, level)
 	if setupErr != nil {
 		logger, _ = logging.New(stderr, "auto", "info")
 	}
@@ -64,6 +66,21 @@ func run(args []string, stderr io.Writer) error {
 		logger.Error("Command failed", "component", "cli", "error", err)
 	}
 	return err
+}
+
+// savedLogSettings is best effort: commands that need the configuration report
+// its errors themselves, so a broken file must not stop logging from starting.
+// An empty result means the product defaults.
+func savedLogSettings() (format, level string) {
+	path, err := config.Path()
+	if err != nil {
+		return "", ""
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		return "", ""
+	}
+	return cfg.LogFormat, cfg.LogLevel
 }
 
 func configCommand() *cli.Command {

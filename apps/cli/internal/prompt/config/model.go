@@ -27,20 +27,34 @@ type model struct {
 	err       error
 }
 
+// Field order in the questionnaire.
+const (
+	nameField = iota
+	shellField
+	levelField
+	formatField
+	tmuxField
+)
+
 func newModel(cfg settings.Config, path string, save func(settings.Config) error) model {
-	name, shell, tmux := textinput.New(), textinput.New(), textinput.New()
+	name, shell := textinput.New(), textinput.New()
+	level, format := textinput.New(), textinput.New()
+	tmux := textinput.New()
 	name.SetValue(cfg.MachineName)
 	shell.SetValue(cfg.Shell)
+	level.SetValue(cfg.LogLevelOrDefault())
+	format.SetValue(cfg.LogFormatOrDefault())
 	tmux.SetValue(tmuxChoice(cfg))
-	for _, input := range []*textinput.Model{&name, &shell, &tmux} {
-		input.Prompt = ""
-		input.SetStyles(inputStyles())
-		input.SetWidth(48)
-		input.CharLimit = 256
+	inputs := []textinput.Model{name, shell, level, format, tmux}
+	for i := range inputs {
+		inputs[i].Prompt = ""
+		inputs[i].SetStyles(inputStyles())
+		inputs[i].SetWidth(48)
+		inputs[i].CharLimit = 256
 	}
-	tmux.CharLimit = 4096
-	name.Focus()
-	return model{inputs: []textinput.Model{name, shell, tmux}, cfg: cfg, path: path, save: save}
+	inputs[tmuxField].CharLimit = 4096
+	inputs[nameField].Focus()
+	return model{inputs: inputs, cfg: cfg, path: path, save: save}
 }
 
 // Prefill setup with the local file when available. Existing explicit choices
@@ -65,7 +79,7 @@ func (m model) validateAnswers(cfg settings.Config) error {
 		return err
 	}
 	// Check explicit paths at the tmux question and once more before saving.
-	if m.focused >= 2 {
+	if m.focused >= tmuxField {
 		_, err := cfg.TmuxFile()
 		return err
 	}
@@ -163,9 +177,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) answers() settings.Config {
 	cfg := m.cfg
-	cfg.MachineName = strings.TrimSpace(m.inputs[0].Value())
-	cfg.Shell = strings.TrimSpace(m.inputs[1].Value())
-	cfg.TmuxConfig = strings.TrimSpace(m.inputs[2].Value())
+	cfg.MachineName = strings.TrimSpace(m.inputs[nameField].Value())
+	cfg.Shell = strings.TrimSpace(m.inputs[shellField].Value())
+	cfg.LogLevel = strings.TrimSpace(m.inputs[levelField].Value())
+	cfg.LogFormat = strings.TrimSpace(m.inputs[formatField].Value())
+	cfg.TmuxConfig = strings.TrimSpace(m.inputs[tmuxField].Value())
 	if cfg.TmuxConfig == "" {
 		cfg.TmuxConfig = "default"
 	}
@@ -177,7 +193,16 @@ func (m model) View() tea.View {
 	b.WriteString(accentStyle.Bold(true).Render("WebSSH") + mutedStyle.Render(" / configure this machine") + "\n\n")
 	if m.existing {
 		fmt.Fprintf(&b, "%s\n  %s\n\n", successStyle.Render("✓ Existing configuration found"), mutedStyle.Render(m.path))
-		fmt.Fprintf(&b, "%s %s\n%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell), mutedStyle.Render("Tmux config:"), answerStyle.Render(tmuxChoice(m.cfg)))
+		for _, line := range [][2]string{
+			{"Machine name:", m.cfg.MachineName},
+			{"Shell executable:", m.cfg.Shell},
+			{"Log level:", m.cfg.LogLevelOrDefault()},
+			{"Log format:", m.cfg.LogFormatOrDefault()},
+			{"Tmux config:", tmuxChoice(m.cfg)},
+		} {
+			fmt.Fprintf(&b, "%s %s\n", mutedStyle.Render(line[0]), answerStyle.Render(line[1]))
+		}
+		b.WriteString("\n")
 		switch {
 		case m.used:
 			b.WriteString(successStyle.Render("✓ Using existing configuration.") + "\n")
@@ -189,13 +214,18 @@ func (m model) View() tea.View {
 		}
 		return tea.NewView(b.String())
 	}
-	labels := []string{"Machine name", "Shell executable", "Tmux config"}
+	labels := []string{"Machine name", "Shell executable", "Log level", "Log format", "Tmux config"}
 	for i, label := range labels {
 		if i < m.focused {
 			fmt.Fprintf(&b, "%s %s %s\n", successStyle.Render("✓"), mutedStyle.Render(label+":"), answerStyle.Render(m.inputs[i].Value()))
 		} else if i == m.focused && !m.cancelled {
 			fmt.Fprintf(&b, "%s %s %s\n", questionStyle.Render("?"), questionStyle.Render(label+":"), m.inputs[i].View())
-			if i == 2 {
+			switch i {
+			case levelField:
+				b.WriteString(mutedStyle.Render("  debug · info · warn · error") + "\n")
+			case formatField:
+				b.WriteString(mutedStyle.Render("  auto · text · json") + "\n")
+			case tmuxField:
 				b.WriteString(mutedStyle.Render("  File path · default auto-detects · none disables config") + "\n")
 			}
 		}

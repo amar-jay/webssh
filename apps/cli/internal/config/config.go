@@ -16,6 +16,9 @@ type Config struct {
 	Version     int    `toml:"version"`
 	MachineName string `toml:"machine_name"`
 	Shell       string `toml:"shell"`
+	// LogLevel and LogFormat are optional; empty means the product default.
+	LogLevel  string `toml:"log_level,omitempty"`
+	LogFormat string `toml:"log_format,omitempty"`
 	// TmuxConfig is "default", "none", or a file path.
 	// "default" uses the local tmux config when one exists, and no config otherwise.
 	TmuxConfig string `toml:"tmux_config,omitempty"`
@@ -30,7 +33,29 @@ func Defaults() Config {
 	if shell == "" {
 		shell = "/bin/sh"
 	}
-	return Config{Version: 1, MachineName: name, Shell: shell, TmuxConfig: "default"}
+	return Config{
+		Version:     1,
+		MachineName: name,
+		Shell:       shell,
+		LogLevel:    "info",
+		LogFormat:   "auto",
+		TmuxConfig:  "default",
+	}
+}
+
+// LogLevelOrDefault keeps configs written before logging settings existed usable.
+func (c Config) LogLevelOrDefault() string {
+	if level := strings.ToLower(strings.TrimSpace(c.LogLevel)); level != "" {
+		return level
+	}
+	return "info"
+}
+
+func (c Config) LogFormatOrDefault() string {
+	if format := strings.ToLower(strings.TrimSpace(c.LogFormat)); format != "" {
+		return format
+	}
+	return "auto"
 }
 
 // LocalTmuxConfig returns the first user tmux config tmux would read, or "" when none exists.
@@ -120,6 +145,16 @@ func (c Config) Validate() error {
 		if _, err := expandPath(c.TmuxConfig); err != nil {
 			return err
 		}
+	}
+	switch c.LogLevelOrDefault() {
+	case "debug", "info", "warn", "error":
+	default:
+		return errors.New("log level must be debug, info, warn, or error")
+	}
+	switch c.LogFormatOrDefault() {
+	case "auto", "text", "json":
+	default:
+		return errors.New("log format must be auto, text, or json")
 	}
 	for _, field := range []struct{ name, value string }{{"machine name", c.MachineName}, {"shell", c.Shell}} {
 		if strings.TrimSpace(field.value) == "" {

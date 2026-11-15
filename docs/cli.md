@@ -25,13 +25,13 @@ GOMAXPROCS=2 go test -p 1 ./...
 
 If a valid configuration file already exists, `webssh config` first asks **Use existing configuration? [Y/n]**. `y` or Enter uses it unchanged; `n` starts setup again; Esc cancels. The questionnaire restarts from defaults and only replaces the file after the final save confirmation; cancelling preserves the existing file.
 
-`webssh config` asks for the machine name, shell executable, and tmux configuration one question at a time using Bubble Tea v2 and Bubbles text inputs, inline in the current shell. Enter accepts each prefilled answer; Shift+Tab goes back. A final `[y/N]` prompt saves only on `y`; Enter or `n` cancels. Esc or Ctrl+C cancels at any question. Save errors stay at confirmation so they can be retried. The prompt does not use the alternate screen, and leaves the answer transcript visible.
+`webssh config` asks for the machine name, shell executable, log level, log format, and tmux configuration one question at a time using Bubble Tea v2 and Bubbles text inputs, inline in the current shell. Enter accepts each prefilled answer; Shift+Tab goes back. A final `[y/N]` prompt saves only on `y`; Enter or `n` cancels. Esc or Ctrl+C cancels at any question. Save errors stay at confirmation so they can be retried. The prompt does not use the alternate screen, and leaves the answer transcript visible.
 
 By default the TOML file is stored at `~/.webssh/config.toml`, using `os.UserHomeDir()`. A missing file uses the hostname and `$SHELL` (falling back to `/bin/sh`) without writing anything. Saving validates the settings and atomically replaces the file using a temporary file with mode 0600. Unknown fields, malformed TOML, and unsupported schema versions are rejected rather than silently overwritten.
 
 The tmux question is prefilled with the first available local config: `$XDG_CONFIG_HOME/tmux/tmux.conf`, `~/.config/tmux/tmux.conf`, then `~/.tmux.conf`. If none exists it offers `none`. Accept that path, provide another absolute or `~/` path, choose `default` for automatic discovery at startup, or `none` to ignore tmux configuration. Explicit files must exist before setup can continue. The chosen value is saved as `tmux_config`; setup never edits the tmux file or starts tmux. Existing explicit choices remain prefilled when passed to the questionnaire.
 
-Configuration is versioned with `version = 1`. The shell field is an executable name/path, not a shell command; no process is launched by the questionnaire. The agent uses the configured shell executable.
+Configuration is versioned with `version = 1`. The shell field is an executable name/path, not a shell command; no process is launched by the questionnaire. The agent uses the configured shell executable. Logging is saved as `log_level` (`info` by default) and `log_format` (`auto` by default); files written before these fields existed keep working and use those defaults.
 
 `webssh pair` starts a short-lived pairing attempt against the fixed production origin `https://ssh.amarjay.com`, prints a code and approval URL, and waits until the authenticated browser approves. The CLI then writes `~/.webssh/credentials.toml` (mode 0600). Existing credentials require `--replace`.
 
@@ -70,11 +70,16 @@ Deploy state migration 6 before the updated web app, then distribute the updated
 
 ## Diagnostics
 
-CLI diagnostics use Go `log/slog` on stderr. The optional `LOG_FORMAT=auto|text|json` environment variable selects the format (default `auto`: text for an interactive stderr terminal, JSON when redirected). `LOG_LEVEL=debug|info|warn|error` selects the minimum level (default `info`). Neither setting is a CLI flag:
+CLI diagnostics use Go `log/slog` on stderr. `webssh config` saves `log_level` (`debug|info|warn|error`, default `info`) and `log_format` (`auto|text|json`, default `auto`: text for an interactive stderr terminal, JSON when redirected). Neither setting has a CLI flag or an environment variable, so the saved file is the only source; changes apply from the next command:
+
+```toml
+# ~/.webssh/config.toml
+log_level = 'debug'
+log_format = 'json'
+```
 
 ```sh
-LOG_LEVEL=debug webssh serve .
-LOG_FORMAT=json webssh serve --json . 2>agent.log
+webssh serve . 2>agent.log
 ```
 
 Terminal text logs use Tokyo Night Moon colors for timestamps and severity. `NO_COLOR` disables colors; `TERM=dumb`, redirected output, and JSON output never contain ANSI styling. During `serve` startup, normal diagnostics appear after the workspace/browser URL output, retaining their original timestamps. Errors flush startup diagnostics immediately.

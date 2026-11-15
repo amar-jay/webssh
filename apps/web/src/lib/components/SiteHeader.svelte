@@ -1,7 +1,7 @@
 <script lang="ts">
-  import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
   import LogIn from "@lucide/svelte/icons/log-in";
   import LogOut from "@lucide/svelte/icons/log-out";
+  import GitHubIcon from "./GitHubIcon.svelte";
   import SiteTabs from "./SiteTabs.svelte";
   import { buttonBright } from "#lib/ui.js";
 
@@ -15,17 +15,20 @@
     class="flex items-center font-display text-[22px] font-semibold tracking-tight"
     href="/"
     aria-label="WebSSH home"
-    ><span
-      class="mr-2.5 h-5 w-4 bg-linear-to-br from-[#82aaff] via-[#c099ff] to-[#86e1fc] [clip-path:polygon(50%_0,100%_50%,50%_100%,0_50%)]"
-      aria-hidden="true"
-    ></span>webssh<span class="text-coral">.</span></a
+    ><img
+      class="mr-2.5 size-6 shrink-0"
+      src="/icon.svg"
+      alt=""
+      width="24"
+      height="24"
+    />webssh<span class="text-coral">.</span></a
   >
   <SiteTabs class="order-3 w-full md:order-none md:w-auto md:flex-1" />
   <div class="ml-auto flex items-center gap-3 md:ml-0">
     <a
-      class="inline-flex items-center gap-1 text-sm font-medium text-secondary hover:text-ink"
+      class="inline-flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-ink"
       href="https://github.com/amar-jay/webssh"
-      >GitHub <ArrowUpRight class="size-3.5" aria-hidden="true" /></a
+      ><GitHubIcon class="size-4" /> GitHub</a
     >
     {#if signedIn}
       <form class="m-0" action="/logout" method="POST">

@@ -76,32 +76,30 @@ func TestFormatAndLevelValidation(t *testing.T) {
 	}
 }
 
-func TestEnvironmentDefaultsAndOverrides(t *testing.T) {
-	t.Setenv("LOG_FORMAT", "")
-	t.Setenv("LOG_LEVEL", "")
+func TestSettingsDefaultsAndNormalisation(t *testing.T) {
 	var out bytes.Buffer
-	logger, err := FromEnvironment(&out)
+	logger, err := FromSettings(&out, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	logger.Debug("hidden")
 	logger.Info("visible")
 	if !json.Valid(bytes.TrimSpace(out.Bytes())) || strings.Contains(out.String(), "hidden") {
-		t.Fatal("wrong environment defaults")
+		t.Fatal("wrong defaults")
 	}
 	out.Reset()
-	t.Setenv("LOG_FORMAT", " TEXT ")
-	t.Setenv("LOG_LEVEL", "DEBUG")
-	logger, err = FromEnvironment(&out)
+	logger, err = FromSettings(&out, " TEXT ", " DEBUG ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	logger.Debug("enabled")
-	if !strings.Contains(out.String(), "level=DEBUG") {
-		t.Fatal("environment overrides ignored")
+	if !strings.Contains(out.String(), "level=DEBUG") || !strings.Contains(out.String(), "msg=enabled") {
+		t.Fatalf("saved settings ignored: %s", out.String())
 	}
-	t.Setenv("LOG_FORMAT", "invalid")
-	if _, err = FromEnvironment(&out); err == nil {
-		t.Fatal("invalid environment format accepted")
+	if _, err := FromSettings(&out, "json", "trace"); err == nil {
+		t.Fatal("invalid saved level accepted")
+	}
+	if _, err := FromSettings(&out, "csv", "info"); err == nil {
+		t.Fatal("invalid saved format accepted")
 	}
 }

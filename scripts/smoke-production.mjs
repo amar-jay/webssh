@@ -37,6 +37,13 @@ for (const [href, label] of [
     new RegExp(`href="${href}"[^>]*>${label}<`),
     `landing tab ${label} must link to ${href}`,
   );
+for (const marker of [
+  'rel="icon" href="/favicon.ico"',
+  'type="image/svg+xml"',
+  'rel="apple-touch-icon"',
+  'rel="manifest"',
+])
+  assert.ok(landing.includes(marker), `landing head is missing ${marker}`);
 // Exercise form-origin checks without an authenticated session or user cookies.
 for (const requestOrigin of [origin, "null", "https://untrusted.example"]) {
   const logout = await fetch(origin + "/logout", {
@@ -59,6 +66,7 @@ assert.equal(help.status, 200);
 const helpHtml = await help.text();
 assert.match(helpHtml, /How do I pair a machine/);
 assert.match(helpHtml, /aria-current="page">Help</, "help tab is current");
+assert.match(helpHtml, /Logging and environment/);
 for (const path of ["/machines", "/machines/release_smoke"]) {
   const response = await fetch(origin + path, {
     redirect: "manual",
@@ -100,6 +108,29 @@ assert.equal(
   await installer.text(),
   await readFile(new URL("./install.sh", import.meta.url), "utf8"),
 );
+for (const [path, type] of [
+  ["/favicon.ico", /image\/(x-icon|vnd\.microsoft\.icon)/],
+  ["/icon.svg", /image\/svg\+xml/],
+  ["/apple-touch-icon.png", /image\/png/],
+  ["/icon-192.png", /image\/png/],
+]) {
+  const icon = await get(path);
+  assert.equal(icon.status, 200, `${path} must be served`);
+  assert.match(
+    icon.headers.get("content-type") ?? "",
+    type,
+    `${path} content type`,
+  );
+  assert.ok(
+    (await icon.arrayBuffer()).byteLength > 256,
+    `${path} is not empty`,
+  );
+}
+const webManifestResponse = await get("/manifest.webmanifest");
+assert.equal(webManifestResponse.status, 200);
+const webManifest = await webManifestResponse.json();
+assert.equal(webManifest.short_name, "WebSSH");
+assert.ok(webManifest.icons.some((icon) => icon.src === "/icon.svg"));
 const dev = await get("/dev/connect");
 assert.equal(dev.status, 404);
 const m = await get("/tailcat/build.json");
