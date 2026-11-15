@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { attachPairedSession } from "#lib/session/paired-session.js";
+  import { attachPairedSession, type ConnectionStatus as Status } from "#lib/session/paired-session.js";
+  import ConnectionStatus from "#lib/components/ConnectionStatus.svelte";
+  let status = $state<Status | null>({ phase: "connecting", message: "Preparing terminal" });
+  let retry = () => window.location.reload();
   const dev = import.meta.env.DEV;
   import SessionTerminal from "#lib/components/SessionTerminal.svelte";
   import { takeLocalSession } from "#lib/session/local-connections.js";
@@ -14,9 +17,11 @@
   function attach(controller: Controller) {
     const local = dev ? takeLocalSession(params.session_id) : undefined;
     if (!local) {
-      const session = attachPairedSession(controller, params.session_id);
+      const session = attachPairedSession(controller, params.session_id, { onStatus: (next) => { status = next; } });
+      retry = () => { void session.retry(); controller.terminal.focus(); };
       return () => session.dispose();
     }
+    status = null;
     if (local.mode === "mock")
       return attachMockSession(controller.terminal, params.session_id);
     const session = attachRemoteSession(controller, local.connection, {
@@ -44,6 +49,9 @@
   <SessionTerminal
     sessionId={params.session_id}
     onReady={attach}
+    onError={() => { status = { phase: "failed", message: "Terminal unavailable", detail: "Reload to try again.", retryable: true }; }}
     options={{ screenReader: dev }}
   />
 {/key}
+
+{#if status}<ConnectionStatus {status} onRetry={() => retry()} />{/if}

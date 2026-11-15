@@ -57,7 +57,7 @@ try {
  // resolver must require authentication, rather than replaying credentials.
  const grantResponse=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/grant') && response.request().method()==='POST');
  await page.reload();assert.equal((await grantResponse).status(),401);
- await see('Sign in at / with the GitHub account used to pair this machine, then reload.');
+ await page.getByRole('status').filter({hasText:'Sign in at / with the GitHub account used to pair this machine, then reload.'}).waitFor();
  assert(!(await text()).includes('webssh-mock'));
  await connect(descriptor);await see('Connected.');await command('echo $$ > shell.pid');
  await until(async()=>{try{await access(resolve(workspace,'shell.pid'));return true;}catch{return false;}},'shell PID');

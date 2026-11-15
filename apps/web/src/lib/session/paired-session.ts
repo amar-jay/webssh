@@ -8,22 +8,22 @@ import type { SessionTerminal } from "../terminal/create-terminal.js";
 type Controller = Pick<SessionTerminal, "terminal">;
 const problems: Record<string, string> = {
   resource_limit:
-    "Workspace capacity reached. Wait for unused grants to expire, or choose an existing session from the overview.",
+    "Workspace capacity reached. Wait for unused grants to expire, or choose an existing session from Machines.",
   unauthorized:
     "Sign in at / with the GitHub account used to pair this machine, then reload.",
   not_found:
-    "This session is unavailable. Open / to choose one of your workspaces.",
+    "This session is unavailable. Open Machines to choose a workspace.",
   agent_offline:
     "This machine is offline. Waiting for the agent; shell state is unknown.",
-  session_ended: "This session has ended. Open / to start a new session.",
+  session_ended: "This session has ended. Open Machines to start a new session.",
   session_expired:
     "This session is expired. Restart webssh serve to recover its durable workspace.",
   session_busy:
-    "Another controller is attached. Close or detach it; WebSSH never takes over automatically.",
+    "Detach the other controller, then retry. WebSSH never takes over automatically.",
   agent_revoked:
     "This machine’s pairing expired or was revoked. Pair the machine again.",
   session_not_found:
-    "The agent cannot find this persistent session. Open / to start a new one.",
+    "The agent cannot find this persistent session. Open Machines to start a new one.",
   backend_unavailable:
     "The persistent backend is unavailable. Check tmux and the agent on your machine.",
   capability_mismatch:
@@ -33,17 +33,25 @@ const problems: Record<string, string> = {
 };
 const retryErrors = new Set([
   "agent_offline",
-  "session_busy",
-  "session_expired",
   "session_unavailable",
   "rate_limited",
 ]);
+
+export type ConnectionStatus = {
+  phase: "connecting" | "retrying" | "blocked" | "failed" | "ended";
+  message: string;
+  detail?: string;
+  retryable?: boolean;
+  attempt?: number;
+  maxRetries?: number;
+};
 
 /** Fresh credentials on every reconnect; no input queue survives an attachment. */
 export function attachPairedSession(
   controller: Controller,
   sessionId: string,
   options: {
+    onStatus?: (status: ConnectionStatus | null) => void;
     fetcher?: typeof fetch;
     attach?: typeof attachRemoteSession;
     maxRetries?: number;
@@ -54,9 +62,15 @@ export function attachPairedSession(
   let remote: ReturnType<typeof attachRemoteSession> | undefined;
   let running = false,
     terminalExit = false;
-  const write = (text: string) => {
-    if (!lifetime.signal.aborted) controller.terminal.write(`\r\n${text}\r\n`);
+  const show = (status: ConnectionStatus | null) => {
+    if (!lifetime.signal.aborted) options.onStatus?.(status);
   };
+  const problem = (reason: string) => show({
+    phase: reason === "session_busy" ? "blocked" : "failed",
+    message: reason === "session_busy" ? "Session in use" : "Cannot connect",
+    detail: problems[reason] ?? "The agent rejected this connection.",
+    retryable: reason === "session_busy",
+  });
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
       const finish = () => {
@@ -78,9 +92,7 @@ export function attachPairedSession(
         retry++
       ) {
         if (retry) {
-          write(
-            `Reconnecting (${retry}/${options.maxRetries ?? 6})… No input will be replayed.`,
-          );
+          show({ phase: "retrying", message: "Reconnecting", detail: "Requesting fresh authorization. No input will be replayed.", attempt: retry, maxRetries: options.maxRetries ?? 6 });
           await sleep(
             (options.retryDelays ?? [500, 1000, 2000, 4000, 8000, 8000])[
               Math.min(retry - 1, (options.retryDelays?.length ?? 6) - 1)
@@ -91,7 +103,7 @@ export function attachPairedSession(
         remote?.dispose();
         let shouldRetry = true;
         try {
-          write("Resolving your workspace…");
+          show({ phase: "connecting", message: "Resolving your workspace", ...(retry ? { attempt: retry, maxRetries: options.maxRetries ?? 6 } : {}) });
           const response = await (options.fetcher ?? fetch)(
             `/api/sessions/${encodeURIComponent(sessionId)}/grant`,
             {
@@ -107,11 +119,8 @@ export function attachPairedSession(
           const data = await response.json();
           if (lifetime.signal.aborted) return;
           if (!response.ok) {
-            write(
-              typeof problems[data.error] === "string"
-                ? problems[data.error]
-                : "Couldn’t reach your workspace.",
-            );
+            problem(data.error);
+            if (data.error === "session_busy") return;
             shouldRetry = retryErrors.has(data.error);
             if (!shouldRetry) {
               terminalExit = true;
@@ -145,31 +154,18 @@ export function attachPairedSession(
                 onState(state: SessionResult) {
                   if (state.state === "ready") {
                     readyAt = Date.now();
-                    write(
-                      data.backend === "ephemeral"
-                        ? "Connected to an ephemeral shell. Disconnecting ends it."
-                        : "Connected. Reloading or closing this tab detaches your durable session.",
-                    );
-                  } else if (state.state === "connecting")
-                    write("Connecting to your machine…");
-                  else if (state.state === "exited")
-                    write(
-                      state.code === undefined
-                        ? "Remote session ended."
-                        : `Shell exited (${state.code}).`,
-                    );
-                  else if (state.state === "terminated")
-                    write("Remote session terminated.");
-                  else if (state.state === "detached")
-                    write(
-                      data.backend === "ephemeral"
-                        ? "Detached. The ephemeral shell is ending."
-                        : "Detached. Your tmux session is preserved.",
-                    );
-                  else if (state.state === "disconnected")
-                    write(
-                      "Connection lost. Shell state is unknown; requesting fresh authorization.",
-                    );
+                    show(null);
+                  } else if (state.state === "connecting") {
+                    show({ phase: "connecting", message: "Connecting to your machine", ...(retry ? { attempt: retry, maxRetries: options.maxRetries ?? 6 } : {}) });
+                  } else if (state.state === "exited") {
+                    show({ phase: "ended", message: state.code === undefined ? "Remote session ended" : `Shell exited (${state.code})` });
+                  } else if (state.state === "terminated") {
+                    show({ phase: "ended", message: "Remote session terminated" });
+                  } else if (state.state === "detached") {
+                    show({ phase: "ended", message: "Detached", detail: data.backend === "ephemeral" ? "The ephemeral shell is ending." : "Your tmux session is preserved." });
+                  } else if (state.state === "disconnected") {
+                    show({ phase: "retrying", message: "Connection lost", detail: "Shell state is unknown. Requesting fresh authorization." });
+                  }
                 },
               },
             );
@@ -185,32 +181,25 @@ export function attachPairedSession(
               terminalExit = true;
               return;
             }
-            if (result.reason && !["session_busy"].includes(result.reason)) {
-              write(
-                problems[result.reason] ??
-                  "The agent rejected this connection.",
-              );
-              terminalExit = true;
+            if (result.reason) {
+              problem(result.reason);
+              if (result.reason !== "session_busy") terminalExit = true;
               return;
             }
             if (data.backend === "ephemeral") {
-              write(
-                "This is an ephemeral workspace. Open / to start a new shell.",
-              );
+              show({ phase: "ended", message: "Ephemeral shell disconnected", detail: "Open Machines to start a new shell." });
               terminalExit = true;
               return;
             }
           }
         } catch {
           if (lifetime.signal.aborted) return;
-          write("Couldn’t reach the workspace. Its shell state is unknown.");
+          show({ phase: "retrying", message: "Workspace unreachable", detail: "Shell state is unknown." });
         }
         if (!shouldRetry) return;
       }
       if (!lifetime.signal.aborted)
-        write(
-          "Reconnect attempts stopped. Check that serve is running, then press r to retry.",
-        );
+        show({ phase: "failed", message: "Reconnect paused", detail: "Check that webssh serve is running, then press r to retry.", retryable: true });
     } finally {
       running = false;
     }
@@ -221,6 +210,7 @@ export function attachPairedSession(
   const done = start();
   return {
     done,
+    retry: start,
     detach() {
       terminalExit = true;
       remote?.detach();

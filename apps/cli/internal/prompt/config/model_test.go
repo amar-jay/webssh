@@ -4,6 +4,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"errors"
 	settings "github.com/amar-jay/webssh/apps/cli/internal/config"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -46,7 +48,7 @@ func TestSaveAndFailureCanBeRetried(t *testing.T) {
 func TestQuestionsAdvanceWithoutSaving(t *testing.T) {
 	called := false
 	m := newModel(settings.Defaults(), "unused", func(settings.Config) error { called = true; return nil })
-	for step := 1; step <= 2; step++ {
+	for step := 1; step <= len(m.inputs); step++ {
 		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 		m = next.(model)
 		if m.focused != step || called {
@@ -89,11 +91,95 @@ func TestResetStartsFreshWithoutWriting(t *testing.T) {
 	m.existing = true
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'n', Text: "n"})
 	reset := next.(model)
-	if reset.existing || reset.focused != 0 || reset.answers() != settings.Defaults() || called {
+	if reset.existing || reset.focused != 0 || (reset.answers().MachineName != settings.Defaults().MachineName || reset.answers().Shell != settings.Defaults().Shell || reset.answers().TmuxConfig != tmuxChoice(settings.Defaults())) || called {
 		t.Fatal("reset should only restart the questionnaire with defaults")
 	}
 	next, _ = reset.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if !next.(model).cancelled || called {
 		t.Fatal("cancelling reset must preserve the file")
+	}
+}
+
+func TestTmuxQuestionDefaultsToLocalConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	m := newModel(settings.Defaults(), "unused", nil)
+	if m.inputs[2].Value() != "none" {
+		t.Fatal("missing config should default to none")
+	}
+	local := filepath.Join(home, ".tmux.conf")
+	if err := os.WriteFile(local, []byte("set -g mouse on\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	m = newModel(settings.Defaults(), "unused", nil)
+	if m.inputs[2].Value() != local {
+		t.Fatalf("local config not prefilled: %q", m.inputs[2].Value())
+	}
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	preferred := filepath.Join(xdg, "tmux", "tmux.conf")
+	if err := os.MkdirAll(filepath.Dir(preferred), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preferred, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	m = newModel(settings.Defaults(), "unused", nil)
+	if m.inputs[2].Value() != preferred {
+		t.Fatal("XDG local config not preferred")
+	}
+	cfg := settings.Defaults()
+	cfg.TmuxConfig = "none"
+	if got := newModel(cfg, "unused", nil).inputs[2].Value(); got != "none" {
+		t.Fatal("explicit none was replaced")
+	}
+	cfg.TmuxConfig = local
+	if got := newModel(cfg, "unused", nil).inputs[2].Value(); got != local {
+		t.Fatal("explicit path was replaced")
+	}
+}
+
+func TestTmuxQuestionValidatesAndPersistsSelection(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	custom := filepath.Join(home, "custom tmux.conf")
+	if err := os.WriteFile(custom, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, choice := range []string{custom, "~/custom tmux.conf", "none", "default"} {
+		t.Run(choice, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			m := newModel(settings.Defaults(), path, func(c settings.Config) error { return settings.Save(path, c) })
+			m.focused = 2
+			m.inputs[2].SetValue(filepath.Join(home, "missing.conf"))
+			next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			m = next.(model)
+			if m.focused != 2 || m.err == nil {
+				t.Fatal("missing file advanced")
+			}
+			m.inputs[2].SetValue(choice)
+			next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			m = next.(model)
+			if m.focused != len(m.inputs) || m.err != nil {
+				t.Fatalf("valid choice rejected: %v", m.err)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatal("saved before confirmation")
+			}
+			next, cmd := m.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+			if cmd == nil {
+				t.Fatal("save did not start")
+			}
+			next, _ = next.(model).Update(cmd())
+			if !next.(model).saved {
+				t.Fatal("save failed")
+			}
+			loaded, err := settings.Load(path)
+			if err != nil || loaded.TmuxConfig != choice {
+				t.Fatalf("selection not persisted: %q %v", loaded.TmuxConfig, err)
+			}
+		})
 	}
 }

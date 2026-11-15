@@ -25,6 +25,16 @@ assert.deepEqual(await health.json(), {
 const root = await get("/");
 assert.equal(root.status, 200);
 assert.match(root.headers.get("content-security-policy"), /wasm-unsafe-eval/);
+assert.equal(root.headers.get("referrer-policy"), "same-origin");
+// Exercise form-origin checks without an authenticated session or user cookies.
+for (const requestOrigin of [origin, "null", "https://untrusted.example"]) {
+  const logout = await fetch(origin + "/logout", {
+    method: "POST", redirect: "manual", body: "",
+    headers: { origin: requestOrigin, "content-type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(15000),
+  });
+  assert.equal(logout.status, requestOrigin === origin ? 303 : 403);
+}
 const session = await get("/s/release_smoke");
 assert.equal(session.status, 303);
 assert.match(session.headers.get("location"), /^\/login\?/);

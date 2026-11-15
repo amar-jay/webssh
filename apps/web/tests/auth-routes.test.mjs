@@ -142,3 +142,27 @@ test('machine actions reject runs and sessions from a different machine', async 
  assert.match((await machinePage.actions.end(machineEvent(state, { sessionId: sessionA, ownerId: 'forged' }))).message, /Termination requested/);
  assert.equal(started, 1); assert.equal(ended, 1);
 });
+
+
+test('HTML responses preserve the origin of native same-site POST forms', async () => {
+ const event = { locals: {}, url: new URL('https://webssh.example/help'),
+  request: new Request('https://webssh.example/help') };
+ const response = await hook.handle({ event, resolve: async () => new Response('<form method="POST" action="/logout"></form>') });
+ assert.equal(response.headers.get('referrer-policy'), 'same-origin');
+ const headers = await import('node:fs/promises').then(fs => fs.readFile(resolve('_headers'), 'utf8'));
+ assert.match(headers, /Referrer-Policy: same-origin/);
+ assert.doesNotMatch(headers, /Referrer-Policy: no-referrer/);
+});
+
+test('logout revokes the signed-in browser session and clears its cookie', async () => {
+ const logout = await moduleAt('src/routes/logout/+server.ts');
+ let revoked = false;
+ const namespace = { idFromName: name => { assert.equal(name, 'owner:42'); return name; }, get: () => ({
+  revokeBrowserSession: async id => { assert.equal(id, 'browser'); revoked = true; },
+ }) };
+ const response = await logout.POST({ locals: { user: { ownerId: '42', sessionId: 'browser' } }, platform: { env: { ...env, WEBSSH_STATE: namespace } } });
+ assert.equal(response.status, 303);
+ assert.equal(response.headers.get('location'), '/');
+ assert.match(response.headers.get('set-cookie'), /__Host-webssh_session=;.*Max-Age=0/);
+ assert.equal(revoked, true);
+});

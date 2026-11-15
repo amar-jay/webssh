@@ -28,17 +28,48 @@ type model struct {
 }
 
 func newModel(cfg settings.Config, path string, save func(settings.Config) error) model {
-	name, shell := textinput.New(), textinput.New()
+	name, shell, tmux := textinput.New(), textinput.New(), textinput.New()
 	name.SetValue(cfg.MachineName)
 	shell.SetValue(cfg.Shell)
-	for _, input := range []*textinput.Model{&name, &shell} {
+	tmux.SetValue(tmuxChoice(cfg))
+	for _, input := range []*textinput.Model{&name, &shell, &tmux} {
 		input.Prompt = ""
 		input.SetStyles(inputStyles())
 		input.SetWidth(48)
 		input.CharLimit = 256
 	}
+	tmux.CharLimit = 4096
 	name.Focus()
-	return model{inputs: []textinput.Model{name, shell}, cfg: cfg, path: path, save: save}
+	return model{inputs: []textinput.Model{name, shell, tmux}, cfg: cfg, path: path, save: save}
+}
+
+// Prefill setup with the local file when available. Existing explicit choices
+// stay intact; accepting an existing configuration never rewrites its setting.
+func tmuxChoice(cfg settings.Config) string {
+	choice := strings.TrimSpace(cfg.TmuxConfig)
+	if choice != "" && choice != "default" {
+		return choice
+	}
+	path, err := cfg.TmuxFile()
+	if err != nil {
+		return "default"
+	}
+	if path == "" {
+		return "none"
+	}
+	return path
+}
+
+func (m model) validateAnswers(cfg settings.Config) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	// Check explicit paths at the tmux question and once more before saving.
+	if m.focused >= 2 {
+		_, err := cfg.TmuxFile()
+		return err
+	}
+	return nil
 }
 
 func (m model) Init() tea.Cmd { return textinput.Blink }
@@ -97,7 +128,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "y", "Y":
 				cfg := m.answers()
-				if err := cfg.Validate(); err != nil {
+				if err := m.validateAnswers(cfg); err != nil {
 					m.err = err
 					return m, nil
 				}
@@ -109,7 +140,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.String() == "enter" {
 			cfg := m.answers()
-			if err := cfg.Validate(); err != nil {
+			if err := m.validateAnswers(cfg); err != nil {
 				m.err = err
 				return m, nil
 			}
@@ -134,6 +165,10 @@ func (m model) answers() settings.Config {
 	cfg := m.cfg
 	cfg.MachineName = strings.TrimSpace(m.inputs[0].Value())
 	cfg.Shell = strings.TrimSpace(m.inputs[1].Value())
+	cfg.TmuxConfig = strings.TrimSpace(m.inputs[2].Value())
+	if cfg.TmuxConfig == "" {
+		cfg.TmuxConfig = "default"
+	}
 	return cfg
 }
 
@@ -142,7 +177,7 @@ func (m model) View() tea.View {
 	b.WriteString(accentStyle.Bold(true).Render("WebSSH") + mutedStyle.Render(" / configure this machine") + "\n\n")
 	if m.existing {
 		fmt.Fprintf(&b, "%s\n  %s\n\n", successStyle.Render("✓ Existing configuration found"), mutedStyle.Render(m.path))
-		fmt.Fprintf(&b, "%s %s\n%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell), mutedStyle.Render("Tmux config:"), answerStyle.Render(m.cfg.TmuxConfig))
+		fmt.Fprintf(&b, "%s %s\n%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell), mutedStyle.Render("Tmux config:"), answerStyle.Render(tmuxChoice(m.cfg)))
 		switch {
 		case m.used:
 			b.WriteString(successStyle.Render("✓ Using existing configuration.") + "\n")
@@ -154,12 +189,15 @@ func (m model) View() tea.View {
 		}
 		return tea.NewView(b.String())
 	}
-	labels := []string{"Machine name", "Shell executable"}
+	labels := []string{"Machine name", "Shell executable", "Tmux config"}
 	for i, label := range labels {
 		if i < m.focused {
 			fmt.Fprintf(&b, "%s %s %s\n", successStyle.Render("✓"), mutedStyle.Render(label+":"), answerStyle.Render(m.inputs[i].Value()))
 		} else if i == m.focused && !m.cancelled {
 			fmt.Fprintf(&b, "%s %s %s\n", questionStyle.Render("?"), questionStyle.Render(label+":"), m.inputs[i].View())
+			if i == 2 {
+				b.WriteString(mutedStyle.Render("  File path · default auto-detects · none disables config") + "\n")
+			}
 		}
 	}
 	if m.cancelled {

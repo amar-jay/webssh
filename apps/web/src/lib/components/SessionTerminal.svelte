@@ -5,9 +5,10 @@
   import '#lib/terminal/fonts.css';
   import { tokyoNightMoon } from '#lib/terminal/theme.js';
 
-  let { sessionId, options = {}, onReady }: {
+  let { sessionId, options = {}, onReady, onError }: {
     sessionId: string;
     options?: TerminalOptions;
+    onError?: () => void;
     onReady?: (session: SessionTerminal) => void | (() => void);
   } = $props();
   let container: HTMLDivElement;
@@ -40,6 +41,8 @@
     }
 
     void initialize().catch((error: unknown) => {
+      if (disposed) return;
+      onError?.();
       container.textContent = 'Could not initialize the terminal. Reload the page to try again.';
       console.error('Failed to initialize terminal');
     });
