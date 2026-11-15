@@ -1,6 +1,6 @@
 # WebSSH completion plan
 
-Status: updated 2026-11-15. Milestones 3 and 4 are complete and deployed. Milestones 5 and 6 are implemented with automated/native/parser/build verification; milestone 6 publication, relay capacity and live browser release gates remain open; completing the implementation does not imply live browser acceptance has been verified.
+Status: updated 2026-11-15. Milestones 3 and 4 are complete and deployed. Milestones 5 and 6 are implemented with automated/native/parser/build verification; v0.1.0 is published as a prerelease with CI/browser/native installer verification; sustained relay capacity and the signed-in deployed browser journey remain open; completing the implementation does not imply live browser acceptance has been verified.
 
 ## Target outcome
 
@@ -15,10 +15,10 @@ Keep the session route entirely terminal-based, using the existing Tokyo Night M
 | Web terminal | xterm, addons, theme, terminal-only route, WASM loading, authenticated production session URLs | Live browser reload/sleep acceptance remains to be verified |
 | Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership, fresh-grant reconnect and liveness deadlines | Deployed browser/relay outage acceptance remains a release gate |
 | Agent | Tailcat listener, HMAC grants, tmux persistence/recovery, active revocation, bounded resources, scoped cleanup and safe lifecycle events | Deployed signed-in browser and outage acceptance |
-| Protocol | Typed Protobuf v2, generated Go/TS codecs, shared fixtures, capabilities, pinned generators and generation-drift CI | Execute CI on the committed release candidate |
-| CLI | Configuration, pairing, opaque session URLs, persistent recovery, cleanup, four versioned archive targets, checksums and tested installer | Publish matching tag; run target-platform CI and clean-machine install/pair |
+| Protocol | Typed Protobuf v2, generated Go/TS codecs, shared fixtures, capabilities, pinned generators and generation-drift CI | Future protocol changes must preserve generation/fixture checks |
+| CLI | Configuration, pairing, opaque session URLs, persistent recovery, cleanup, published v0.1.0 archives, checksums and installer verified on all four native targets | Clean-machine signed-in install/pair/serve journey |
 | State service | Owner/pairing records, active lease checks, generation fences, durable termination, storage quotas and migration preservation tests | Deployed end-to-end release journey |
-| Deployment | Web/state deployed, versioned WASM/runtime assets, CSP, health, CI/release/deploy workflows and production smoke | Sustained relay capacity, tagged publication and signed-in browser acceptance |
+| Deployment | Web/state deployed, versioned WASM/runtime assets, CSP, health, CI/release/deploy workflows and production smoke | Sustained relay capacity and signed-in deployed browser acceptance |
 
 The original architecture notes contain future-tense statements that predate these implementations. Use the code and current protocol/transport documents for implementation status. READMEs remain user-owned.
 
@@ -103,7 +103,7 @@ Depends on pairing and persistent sessions.
 
 ## 6. Make deployment and distribution reliable
 
-**Status: implementation in place; release acceptance remains gated.** Versioned WASM/runtime assets, host size enforcement, dependency/toolchain compatibility, bounded CI, release archives/checksums/installer, production smoke, migration preservation tests, CSP and safe lifecycle signals are implemented. State/web deployment and production app/state/auth/CSP/asset smoke passed on 2026-11-15. See [deployment and distribution](deployment.md) for current relay evidence and the outstanding publication/clean-machine/deployed-browser gates.
+**Status: implemented and v0.1.0 prerelease published; full release acceptance remains gated.** Versioned WASM/runtime assets, host size enforcement, dependency/toolchain compatibility, bounded CI, release archives/checksums/installer, production smoke, migration preservation tests, CSP and safe lifecycle signals are implemented. State/web deployment and production app/state/auth/CSP/asset smoke passed on 2026-11-15. See [deployment and distribution](deployment.md) for current relay evidence and the published release evidence and outstanding clean-machine/deployed-browser/relay-capacity gates.
 
 Start the asset feasibility check during milestone 1; complete this milestone before release.
 
@@ -153,10 +153,10 @@ Proceed milestone by milestone with reviewable commits and update this plan as d
 
 **Milestone 4 complete and deployed:** stable agent-side sessions, tmux persistence, ownership-checked restart recovery, typed protocol v2, distinct detach/terminate operations, bounded fresh-authorization reconnect, and a single-controller busy policy are implemented. Native tmux tests cover running-command preservation through detach, abrupt transport loss, a sleeping controller, restart, redraw, explicit termination, and rejection of unrelated sessions. State and browser-side tests cover generation fences, stale/revoked credentials, queued termination, retry cancellation, and no uncertain-input replay. See [durable sessions](durable-sessions.md).
 
-**Verification limit:** live signed-in browser reload/sleep and deployed relay-outage acceptance remain unverified because no browser was available. Keep these checks in the release gates; automated/native tests and production route/asset smoke checks do not replace them.
+**Verification limit:** browser/local-DERP/native-PTY integration passed in GitHub CI. The signed-in deployed browser reload/sleep and relay-outage journey remains unverified because no signed-in browser surface was available. Keep these checks in the release gates; CI and production route/asset smoke checks do not replace them.
 
 **Milestone 5 implemented:** active lease revalidation and revocation, cancellation-safe native I/O, transactional storage quotas, scoped offline cleanup, and shared terminal output/link/clipboard policies. Native concurrency, real SQLite, and real xterm parser tests verify the controls. See [access and lifecycle controls](access-lifecycle.md).
 
-**Milestone 6 implemented and web/state deployed:** hashed WASM/runtime assets with integrity and compatibility checks, version-matched omission tags, input-aware builds, pinned protocol generation, bounded verification workflows, native installer runner matrix, four CLI archive targets/checksums, migration upgrade tests, CSP, health and fixed lifecycle diagnostics are in place. Local Go tests/vet, 51 JavaScript tests, TypeScript checks, WASM smoke, archive builds and Linux installer/update/corruption tests passed. Production app/state/auth/CSP/asset smoke passed. CLI archives remain unpublished candidates; workflows and signed-in browser acceptance still require execution. Relay TLS/WebSocket probes passed for NYC, SFO and Frankfurt; Tokyo failed from the test machine. See [deployment and distribution](deployment.md).
+**Milestone 6 implemented and web/state deployed:** hashed WASM/runtime assets with integrity and compatibility checks, version-matched omission tags, input-aware builds, pinned protocol generation, bounded verification workflows, native installer runner matrix, four CLI archive targets/checksums, migration upgrade tests, CSP, health and fixed lifecycle diagnostics are in place. Local Go tests/vet, 51 JavaScript tests, TypeScript checks, WASM smoke, archive builds and Linux installer/update/corruption tests passed. Production app/state/auth/CSP/asset smoke passed. [v0.1.0 is published as a prerelease](https://github.com/amar-jay/webssh/releases/tag/v0.1.0). The tagged [release workflow](https://github.com/amar-jay/webssh/actions/runs/43682989364) passed its build/browser tests, all four native installer jobs and publication. The [Verify workflow](https://github.com/amar-jay/webssh/actions/runs/43682346073) also passed. Installing the published Linux amd64 archive into a fresh temporary directory verified its checksum, release version/commit and CLI help. Signed-in deployed browser acceptance remains open. Relay TLS/WebSocket probes passed for NYC, SFO and Frankfurt; Tokyo failed from the test machine. See [deployment and distribution](deployment.md).
 
-**Next release task:** publish a tested matching tag, establish sustained relay capacity, and complete clean-machine installation and the deployed signed-in browser release journey.
+**Next release task:** select an operator-controlled relay and verify sustained capacity/availability, then complete the clean-machine signed-in pairing/serve journey against the deployed web/state services and that relay. Keep v0.1.0 in the prerelease channel until these gates pass.
