@@ -3,6 +3,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"github.com/amar-jay/webssh/packages/protocol"
 	"net"
@@ -117,5 +118,21 @@ func TestPersistenceHelpDistinguishesStopAndTerminate(t *testing.T) {
 	}
 	if !strings.Contains(serveCommand().Description, "preserves remote work") {
 		t.Fatal("serve help missing persistence behavior")
+	}
+}
+
+func TestSessionPruneSubcommandNeedsNoWorkspace(t *testing.T) {
+	var output bytes.Buffer
+	cmd := New()
+	cmd.Writer = &output
+	base := filepath.Join(t.TempDir(), "missing")
+	if err := cmd.Run(context.Background(), []string{"webssh", "sessions", "prune", "--state-dir", base}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "Preview only") {
+		t.Fatal(output.String())
+	}
+	if _, err := os.Stat(base); !os.IsNotExist(err) {
+		t.Fatal("preview created state directory")
 	}
 }

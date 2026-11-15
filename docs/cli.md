@@ -47,6 +47,8 @@ For availability, startup cleanup, connection deadlines, and the session lifecyc
 
 For owned tmux cleanup while serve is stopped, use `webssh sessions <path>`, `webssh sessions --terminate <id> <path>`, or `webssh sessions --terminate-all <path>`. See [access and lifecycle controls](access-lifecycle.md).
 
+To inspect accumulated workspace directories across all workspaces, run `webssh sessions prune`. It previews stale directories under `~/.webssh/sessions`; `webssh sessions prune --apply` removes confirmed stale directories. Use `--state-dir <directory>` for a custom location. Running agents, listening tmux servers (including detached work), invalid ledgers, unknown files and uncertain socket failures are kept. A missing socket with unfinished ledger entries is also kept because a running server may have had its socket manually unlinked. Prune never kills tmux or removes individual tombstones from a surviving workspace. Removing an entire stale directory makes the next `serve` create a fresh run identity, so old grants cannot attach to that new run.
+
 Versioned installation, updates, checksums and rollback are documented in [deployment and distribution](deployment.md).
 
 ## Native terminal client

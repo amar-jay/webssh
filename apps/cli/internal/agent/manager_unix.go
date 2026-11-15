@@ -59,6 +59,12 @@ func OpenSessionManager(base, scope, tmuxConfig string) (*SessionManager, error)
 	if err != nil {
 		return nil, errors.New("tmux is required for durable sessions; install tmux with your system package manager, or explicitly use --backend ephemeral")
 	}
+	releaseGate, err := sessionGate(base, false)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseGate()
+
 	sum := sha256.Sum256([]byte(scope))
 	identity := hex.EncodeToString(sum[:])
 	dir := filepath.Join(base, identity[:20])
