@@ -15,15 +15,6 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func managerScope(creds credentials.File, cfg config.Config, workspace string) string {
-	return fmt.Sprintf("%s\n%s\n%s\n%s\n%s", creds.Origin, creds.OwnerID, creds.AgentID, workspace, cfg.Shell)
-}
-func persistenceMessage(backend string) string {
-	if backend == "tmux" {
-		return "Ctrl+C stops the agent and detaches clients; tmux work stays running. Terminate sessions from the dashboard or with webssh sessions after stopping serve."
-	}
-	return "Ephemeral backend: disconnect or Ctrl+C ends its shells."
-}
 func sessionsCommand() *cli.Command {
 	return &cli.Command{Name: "sessions", Usage: "List or terminate owned tmux sessions while serve is stopped", Description: "Stop serve first to acquire the workspace lock. Without flags, list stable IDs. --terminate and --terminate-all explicitly kill only ledger-owned tmux sessions; they never remove ownership tombstones. Use the dashboard while serve is running.", ArgsUsage: "<path>",
 		Commands:  []*cli.Command{pruneSessionsCommand()},
