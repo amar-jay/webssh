@@ -45,9 +45,3 @@ func (*SessionManager) SnapshotContext(context.Context) ([]string, []string) { r
 func (*SessionManager) List(context.Context) ([]SessionInfo, error) {
 	return nil, errors.New("unsupported platform")
 }
-
-type PruneResult struct{ Directory, Status string }
-
-func PruneSessions(context.Context, string, bool) ([]PruneResult, error) {
-	return nil, errors.New("tmux sessions require Linux or macOS")
-}

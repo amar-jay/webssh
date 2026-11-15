@@ -451,12 +451,8 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 func writeAll(w io.Writer, b []byte) error {
 	for len(b) > 0 {
 		n, err := w.Write(b)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return io.ErrShortWrite
-		}
+		if err != nil { return err }
+		if n == 0 { return io.ErrShortWrite }
 		b = b[n:]
 	}
 	return nil

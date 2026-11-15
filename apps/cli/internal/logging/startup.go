@@ -27,6 +27,7 @@ func BufferStartup(logger *slog.Logger) (*slog.Logger, func()) {
 	state := &startupState{}
 	return slog.New(&startupHandler{base: logger.Handler(), state: state}), func() { state.mu.Lock(); defer state.mu.Unlock(); state.flush(context.Background()) }
 }
+
 func (s *startupState) flush(ctx context.Context) {
 	s.ready = true
 	for _, record := range s.pending {
@@ -34,9 +35,11 @@ func (s *startupState) flush(ctx context.Context) {
 	}
 	s.pending = nil
 }
+
 func (h *startupHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.base.Enabled(ctx, level)
 }
+
 func (h *startupHandler) Handle(ctx context.Context, record slog.Record) error {
 	h.state.mu.Lock()
 	defer h.state.mu.Unlock()
@@ -52,9 +55,11 @@ func (h *startupHandler) Handle(ctx context.Context, record slog.Record) error {
 	}
 	return h.base.Handle(ctx, record)
 }
+
 func (h *startupHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &startupHandler{base: h.base.WithAttrs(attrs), state: h.state}
 }
+
 func (h *startupHandler) WithGroup(name string) slog.Handler {
 	return &startupHandler{base: h.base.WithGroup(name), state: h.state}
 }

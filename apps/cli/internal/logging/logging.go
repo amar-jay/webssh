@@ -119,6 +119,7 @@ func clean(value string) string {
 	value = urlValue.ReplaceAllString(value, "[URL redacted]")
 	return pathValue.ReplaceAllString(value, "$1[path redacted]")
 }
+
 func replaceAttr(groups []string, attr slog.Attr) slog.Attr {
 	for _, group := range groups {
 		if sensitive(group) {
