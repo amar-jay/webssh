@@ -60,6 +60,26 @@ for (const path of ["/dashboard", "/sessions"]) {
   assert.equal(response.status, 303);
   assert.equal(response.headers.get("location"), "/machines");
 }
+const approvalPage = await get("/attach?code=ABCDEFGH");
+assert.equal(approvalPage.status, 303);
+assert.match(approvalPage.headers.get("location"), /^\/login/);
+// Synthetic, unapproved request only: no user's session or credentials are used.
+const cliPost = (path, body) => fetch(origin + path, {
+  method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
+});
+const started = await cliPost("/api/cli/attach/start", { sessionId: "release_smoke_session" });
+assert.equal(started.status, 200);
+assert.match(started.headers.get("cache-control"), /no-store/);
+const attempt = await started.json();
+assert(/^[A-Z0-9]{8}$/.test(attempt.code), "Invalid CLI approval code");
+assert(/^[A-Za-z0-9_-]{32}$/.test(attempt.cliSecret), "Invalid CLI polling secret");
+assert.equal(attempt.url, origin + "/attach?code=" + attempt.code);
+const polled = await cliPost("/api/cli/attach/poll", { code: attempt.code, cliSecret: attempt.cliSecret });
+assert.equal(polled.status, 200);
+assert.equal((await polled.json()).status, "pending");
+const rejected = await cliPost("/api/cli/attach/poll", { code: attempt.code, cliSecret: (attempt.cliSecret[0] === "A" ? "B" : "A") + attempt.cliSecret.slice(1) });
+assert.equal(rejected.status, 401);
 const installer = await get("/install.sh");
 assert.equal(installer.status, 200);
 assert.match(installer.headers.get("cache-control"), /no-store/);
