@@ -20,15 +20,14 @@
       <a class="hover:text-ink" href="/login">Serve</a>
       <a class="inline-flex items-center gap-1 hover:text-ink" href="https://github.com/amar-jay/webssh">GitHub <Icon name="arrow-up-right" class="size-3.5" /></a>
     </nav>
-    <a class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2.5 text-sm hover:border-coral/60 hover:text-accent" href="/login">Sign in <Icon name="log-in" class="size-3.5 text-secondary" /></a>
+    <a class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-canvas hover:bg-[#9ab8ff]" href="/login">Sign in <Icon name="log-in" class="size-3.5" /></a>
   </header>
 
   <main class="mx-auto flex max-w-[820px] flex-col items-center pt-16 pb-16 text-center md:pt-24">
     <h1 class="mb-4 font-display text-[clamp(44px,5.2vw,76px)] leading-[1.03] font-medium tracking-[-.055em]">Your terminal.<br /><span class="bg-linear-to-r from-[#c8d3f5] via-[#86e1fc] to-[#82aaff] bg-clip-text text-transparent">Anywhere you are.</span></h1>
     <p class="mb-8 text-base leading-relaxed text-secondary">The shell you know, on the machine you trust.</p>
-    <div class="w-full rounded-xl border border-accent/30 bg-[#1e2030]/95 px-4 pt-3 pb-4 text-left shadow-[0_25px_70px_#0007,inset_0_1px_0_#ffffff06] md:px-5">
+    <div class="w-fit max-w-full rounded-xl border border-accent/30 bg-[#1e2030]/95 px-4 py-2.5 text-left shadow-[0_25px_70px_#0007,inset_0_1px_0_#ffffff06] md:px-5">
       <CommandBlock bare command={installCommand} />
-      <p class="mb-1 text-xs leading-relaxed text-secondary">Linux and macOS. Installs to ~/.local/bin.</p>
     </div>
     {#if error}<p class="mx-auto mt-4 mb-0 max-w-[500px] text-sm text-danger" role="alert">{error === 'auth_not_configured' ? 'Sign-in is unavailable right now.' : 'Sign-in didn’t complete. Try again.'}</p>{/if}
   </main>

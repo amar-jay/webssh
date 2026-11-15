@@ -1,9 +1,15 @@
 #!/bin/sh
 set -eu
-# Explicit versions only; download and verify before replacing an existing binary.
-version=${1:?Usage: install.sh VERSION [DESTINATION]}
+# A version argument installs that release. No argument, or "latest", follows the
+# current GitHub release, then checks its checksum before replacing a binary.
+version=${1:-latest}
 destination=${2:-"$HOME/.local/bin"}
 case "$destination" in /*) ;; *) destination="$(pwd)/$destination";; esac
+if [ "$version" = latest ]; then
+  resolved=$(curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 -o /dev/null -w '%{url_effective}' https://github.com/amar-jay/webssh/releases/latest)
+  version=${resolved##*/}
+  version=${version#v}
+fi
 case "$version" in *[!0-9.]*|''|.*|*..*) echo 'Invalid version' >&2; exit 1;; esac
 case "$(uname -s)" in Linux) platform=linux;; Darwin) platform=darwin;; *) echo 'Supported: Linux and macOS' >&2; exit 1;; esac
 case "$(uname -m)" in x86_64|amd64) arch=amd64;; arm64|aarch64) arch=arm64;; *) echo 'Unsupported CPU architecture' >&2; exit 1;; esac

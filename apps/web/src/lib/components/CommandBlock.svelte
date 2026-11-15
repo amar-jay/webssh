@@ -16,21 +16,23 @@
 </script>
 
 <div
-  class="flex min-w-0 items-center gap-3 {bare
-    ? 'mt-0 mb-4 bg-transparent p-0'
-    : 'my-3 rounded-lg border border-line bg-canvas px-3 py-4'}"
+  class="inline-flex w-fit max-w-full items-start gap-2 text-sm leading-5 {bare
+    ? 'm-0 bg-transparent p-0'
+    : 'my-3 rounded-lg border border-line bg-canvas px-3 py-2'}"
 >
   <span class="font-mono text-accent" aria-hidden="true">$</span><code
-    class="min-w-0 flex-1 overflow-x-auto font-mono text-sm text-ink whitespace-nowrap"
-    >{command}</code
+    class="min-w-0 font-mono break-all text-ink whitespace-normal">{command}</code
   >
   <Tooltip.Provider
     ><Tooltip.Root
       ><Tooltip.Trigger
-        class="ml-auto grid size-8 shrink-0 place-items-center rounded border border-line bg-transparent text-secondary hover:border-accent hover:text-ink"
+        class="ml-2 inline-flex size-[1em] shrink-0 items-center justify-center text-secondary hover:text-ink"
         onclick={copy}
         aria-label={copied ? "Copied" : `Copy ${command}`}
-        >{#if copied}<Icon name="check" />{:else}<Icon name="copy" />{/if}</Tooltip.Trigger
+        >{#if copied}<Icon name="check" class="size-[1em]" />{:else}<Icon
+            name="copy"
+            class="size-[1em]"
+          />{/if}</Tooltip.Trigger
       ><Tooltip.Portal
         ><Tooltip.Content
           class="z-[60] rounded bg-ink px-2.5 py-2 text-xs text-canvas"
