@@ -85,4 +85,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes release/*
+        run: |
+          release_flags=()
+          if jq -e '.prerelease == true' release/release.json >/dev/null; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "${release_flags[@]}" release/*
