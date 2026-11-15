@@ -26,6 +26,17 @@ const root = await get("/");
 assert.equal(root.status, 200);
 assert.match(root.headers.get("content-security-policy"), /wasm-unsafe-eval/);
 assert.equal(root.headers.get("referrer-policy"), "same-origin");
+const landing = await root.text();
+for (const [href, label] of [
+  ["/machines", "Machines"],
+  ["/pair", "Pair"],
+  ["/help", "Help"],
+])
+  assert.match(
+    landing,
+    new RegExp(`href="${href}"[^>]*>${label}<`),
+    `landing tab ${label} must link to ${href}`,
+  );
 // Exercise form-origin checks without an authenticated session or user cookies.
 for (const requestOrigin of [origin, "null", "https://untrusted.example"]) {
   const logout = await fetch(origin + "/logout", {
@@ -45,7 +56,9 @@ assert.equal(session.status, 303);
 assert.match(session.headers.get("location"), /^\/login\?/);
 const help = await get("/help");
 assert.equal(help.status, 200);
-assert.match(await help.text(), /How do I pair a machine/);
+const helpHtml = await help.text();
+assert.match(helpHtml, /How do I pair a machine/);
+assert.match(helpHtml, /aria-current="page">Help</, "help tab is current");
 for (const path of ["/machines", "/machines/release_smoke"]) {
   const response = await fetch(origin + path, {
     redirect: "manual",
