@@ -173,20 +173,117 @@ try {
   await see("Shell exited (7).");
   // The single-use development handoff is gone after reload. The normal
   // resolver must require authentication, rather than replaying credentials.
-  const grantResponse = page.waitForResponse(
+  let grantRequests = 0;
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname.endsWith("/grant") &&
+      request.method() === "POST"
+    )
+      grantRequests++;
+  });
+  const choicesResponse = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.endsWith("/grant") &&
-      response.request().method() === "POST",
+      new URL(response.url()).pathname.endsWith("/choices") &&
+      response.request().method() === "GET",
   );
   await page.reload();
-  assert.equal((await grantResponse).status(), 401);
+  assert.equal((await choicesResponse).status(), 401);
   await page
     .getByRole("status")
     .filter({
-      hasText:
-        "Sign in at / with the GitHub account used to pair this machine, then reload.",
+      hasText: "Sign in again, then reload this page.",
     })
     .waitFor();
+  assert.equal(
+    grantRequests,
+    0,
+    "reload must not request a grant without authorization and selection",
+  );
+
+  // Exercise the real centered picker with test-only metadata. Grant requests
+  // still receive 401: these fixtures never authorize a shell or reuse the dev token.
+  const referenceId = new URL(page.url()).pathname.split("/").at(-1);
+  const existingId = "picker_existing_1234567890";
+  const newId = "picker_created_1234567890";
+  const choicesRoute = "**/api/sessions/*/choices";
+  const grantsRoute = "**/api/sessions/*/grant";
+  let creates = 0;
+  const selectedIds = [];
+  await page.route(choicesRoute, async (route) => {
+    if (route.request().method() === "POST") {
+      creates++;
+      await route.fulfill({ status: 201, json: { sessionId: newId } });
+    } else {
+      await route.fulfill({
+        json: {
+          backend: "tmux",
+          workspace: "Browser test workspace",
+          online: true,
+          sessions: [referenceId, existingId].map((id) => ({
+            id,
+            status: "connecting",
+            createdAt: 1,
+          })),
+        },
+      });
+    }
+  });
+  await page.route(grantsRoute, async (route) => {
+    selectedIds.push(new URL(route.request().url()).pathname.split("/").at(-2));
+    await route.fulfill({ status: 401, json: { error: "unauthorized" } });
+  });
+  try {
+    await page.reload();
+    const picker = page.getByRole("region", {
+      name: "Terminal sessions",
+      exact: true,
+    });
+    const rows = picker
+      .getByRole("list", { name: "Workspace sessions" })
+      .getByRole("button");
+    await rows.nth(1).waitFor();
+    assert.equal(grantRequests, 0, "showing the picker must not mint a grant");
+    assert.equal(creates, 0, "showing the picker must not create a session");
+    await page.keyboard.press("ArrowDown");
+    await until(
+      async () => (await rows.nth(1).getAttribute("aria-current")) === "true",
+      "picker keyboard selection",
+    );
+    const existingGrant = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+        `/api/sessions/${existingId}/grant`,
+    );
+    await page.keyboard.press("Enter");
+    assert.equal((await existingGrant).status(), 401);
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Sign in at /" })
+      .waitFor();
+    assert.deepEqual(selectedIds, [existingId]);
+
+    await page.reload();
+    await rows.nth(1).waitFor();
+    assert.equal(creates, 0);
+    assert.equal(grantRequests, 1);
+    const newGrant = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/sessions/${newId}/grant`,
+    );
+    await picker
+      .getByRole("button", { name: "New session", exact: true })
+      .click();
+    assert.equal((await newGrant).status(), 401);
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Sign in at /" })
+      .waitFor();
+    assert.equal(creates, 1);
+    assert.deepEqual(selectedIds, [existingId, newId]);
+  } finally {
+    await page.unroute(choicesRoute);
+    await page.unroute(grantsRoute);
+  }
   await connect(descriptor);
   await see("Connected.");
   await command("echo $$ > shell.pid");
@@ -213,7 +310,7 @@ try {
   }, "route disposal reaps shell");
   assert.equal(errors.length, 0);
   console.log(
-    "Browser/DERP/native PTY: auth, Unicode, paste, Ctrl+C, resize, vi, exit and disposal passed.",
+    "Browser/DERP/native PTY: auth, Unicode, paste, Ctrl+C, resize, vi, exit, picker selection, reload authorization and disposal passed.",
   );
 } catch (error) {
   console.error(
