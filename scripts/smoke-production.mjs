@@ -27,6 +27,19 @@ assert.equal(root.status, 200);
 assert.match(root.headers.get("content-security-policy"), /wasm-unsafe-eval/);
 assert.equal(root.headers.get("referrer-policy"), "same-origin");
 const landing = await root.text();
+const publicIndexing = origin === "https://ssh.amarjay.com" ? /^index, follow/ : /^noindex/;
+assert.match(root.headers.get("x-robots-tag"), publicIndexing);
+assert.ok(landing.includes('rel="canonical" href="https://ssh.amarjay.com/"'));
+assert.ok(landing.includes('property="og:title"'));
+assert.ok(landing.includes('name="twitter:card"'));
+const robots = await get("/robots.txt");
+assert.equal(robots.status, 200);
+assert.match(await robots.text(), /Sitemap: https:\/\/ssh\.amarjay\.com\/sitemap\.xml/);
+const sitemap = await get("/sitemap.xml");
+assert.equal(sitemap.status, 200);
+const sitemapXML = await sitemap.text();
+assert.match(sitemapXML, /<loc>https:\/\/ssh\.amarjay\.com\/help<\/loc>/);
+assert.doesNotMatch(sitemapXML, /\/machines|\/s\/|\/pair/);
 for (const [href, label] of [
   ["/machines", "Machines"],
   ["/pair", "Pair"],
@@ -60,10 +73,13 @@ for (const requestOrigin of [origin, "null", "https://untrusted.example"]) {
 }
 const session = await get("/s/release_smoke");
 assert.equal(session.status, 303);
+assert.match(session.headers.get("x-robots-tag"), /^noindex/);
 assert.match(session.headers.get("location"), /^\/login\?/);
 const help = await get("/help");
 assert.equal(help.status, 200);
 const helpHtml = await help.text();
+assert.match(help.headers.get("x-robots-tag"), publicIndexing);
+assert.ok(helpHtml.includes('rel="canonical" href="https://ssh.amarjay.com/help"'));
 assert.match(helpHtml, /How do I pair a machine/);
 assert.match(helpHtml, /aria-current="page">Help</, "help tab is current");
 assert.match(helpHtml, /log_level/);

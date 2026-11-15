@@ -1,3 +1,7 @@
+/robots.txt
+  Cache-Control: public, max-age=3600
+/sitemap.xml
+  Cache-Control: public, max-age=3600
 /tailcat/build.json
   Cache-Control: no-store
   X-Content-Type-Options: nosniff

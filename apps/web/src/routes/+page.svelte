@@ -1,12 +1,8 @@
 <script lang="ts">
+  import Seo from "#lib/components/Seo.svelte";
   import LandingHero from "#lib/components/LandingHero.svelte";
   let { data } = $props();
 </script>
 
-<svelte:head
-  ><title>WebSSH | Your machines, within reach</title><meta
-    name="description"
-    content="Pair your machines with WebSSH. A browser terminal for your own workspace."
-  /></svelte:head
->
+<Seo path="/" />
 <LandingHero signedIn={!!data.user} error={data.error} />

@@ -652,3 +652,28 @@ test("terminal picker limits metadata and new sessions to the owned reference ru
   );
   assert.equal(created, 1);
 });
+
+test("indexing headers permit only successful public production HTML", async () => {
+  for (const [path, status, expected] of [
+    ["/", 200, "index"],
+    ["/help", 200, "index"],
+    ["/s/private", 200, "noindex"],
+    ["/pair", 200, "noindex"],
+    ["/", 503, "noindex"],
+  ]) {
+    const event = {
+      locals: {},
+      url: new URL(path, "https://ssh.amarjay.com"),
+      request: new Request("https://ssh.amarjay.com" + path),
+    };
+    const response = await hook.handle({
+      event,
+      resolve: async () =>
+        new Response("test", {
+          status,
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    assert.equal(response.headers.get("x-robots-tag").split(",")[0], expected);
+  }
+});

@@ -27,7 +27,7 @@
       >
     </h1>
     <p class="mb-8 text-base leading-relaxed text-secondary">
-      The shell you know, on the machine you trust.
+      A persistent browser terminal for the machines you trust.
     </p>
     <CommandCard command={installCommand} />
     {#if error}<p

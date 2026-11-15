@@ -1,3 +1,4 @@
+import { indexablePage } from "#lib/seo.js";
 import type { Handle } from "@sveltejs/kit/hooks";
 import { requireAuthEnv, type AuthEnv } from "#lib/auth/env.js";
 import { readSessionCookie, verifySession } from "#lib/auth/session.js";
@@ -9,6 +10,12 @@ export const handle: Handle = async (input) => {
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
   headers.set("x-content-type-options", "nosniff");
+  headers.set(
+    "x-robots-tag",
+    indexablePage(input.event.url, response.status, headers.get("content-type"))
+      ? "index, follow, max-image-preview:large"
+      : "noindex, nofollow",
+  );
   // Native POST forms need their Origin header for SvelteKit's CSRF check.
   // same-origin preserves it locally and sends no referrer to external sites.
   headers.set("referrer-policy", "same-origin");
