@@ -27,14 +27,18 @@ assert.equal(root.status, 200);
 assert.match(root.headers.get("content-security-policy"), /wasm-unsafe-eval/);
 assert.equal(root.headers.get("referrer-policy"), "same-origin");
 const landing = await root.text();
-const publicIndexing = origin === "https://ssh.amarjay.com" ? /^index, follow/ : /^noindex/;
+const publicIndexing =
+  origin === "https://ssh.amarjay.com" ? /^index, follow/ : /^noindex/;
 assert.match(root.headers.get("x-robots-tag"), publicIndexing);
 assert.ok(landing.includes('rel="canonical" href="https://ssh.amarjay.com/"'));
 assert.ok(landing.includes('property="og:title"'));
 assert.ok(landing.includes('name="twitter:card"'));
 const robots = await get("/robots.txt");
 assert.equal(robots.status, 200);
-assert.match(await robots.text(), /Sitemap: https:\/\/ssh\.amarjay\.com\/sitemap\.xml/);
+assert.match(
+  await robots.text(),
+  /Sitemap: https:\/\/ssh\.amarjay\.com\/sitemap\.xml/,
+);
 const sitemap = await get("/sitemap.xml");
 assert.equal(sitemap.status, 200);
 const sitemapXML = await sitemap.text();
@@ -79,7 +83,9 @@ const help = await get("/help");
 assert.equal(help.status, 200);
 const helpHtml = await help.text();
 assert.match(help.headers.get("x-robots-tag"), publicIndexing);
-assert.ok(helpHtml.includes('rel="canonical" href="https://ssh.amarjay.com/help"'));
+assert.ok(
+  helpHtml.includes('rel="canonical" href="https://ssh.amarjay.com/help"'),
+);
 assert.match(helpHtml, /How do I pair a machine/);
 assert.match(helpHtml, /aria-current="page">Help</, "help tab is current");
 assert.match(helpHtml, /log_level/);
@@ -102,21 +108,36 @@ const approvalPage = await get("/attach?code=ABCDEFGH");
 assert.equal(approvalPage.status, 303);
 assert.match(approvalPage.headers.get("location"), /^\/login/);
 // Synthetic, unapproved request only: no user's session or credentials are used.
-const cliPost = (path, body) => fetch(origin + path, {
-  method: "POST", headers: { "content-type": "application/json" },
-  body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
+const cliPost = (path, body) =>
+  fetch(origin + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  });
+const started = await cliPost("/api/cli/attach/start", {
+  sessionId: "release_smoke_session",
 });
-const started = await cliPost("/api/cli/attach/start", { sessionId: "release_smoke_session" });
 assert.equal(started.status, 200);
 assert.match(started.headers.get("cache-control"), /no-store/);
 const attempt = await started.json();
 assert(/^[A-Z0-9]{8}$/.test(attempt.code), "Invalid CLI approval code");
-assert(/^[A-Za-z0-9_-]{32}$/.test(attempt.cliSecret), "Invalid CLI polling secret");
+assert(
+  /^[A-Za-z0-9_-]{32}$/.test(attempt.cliSecret),
+  "Invalid CLI polling secret",
+);
 assert.equal(attempt.url, origin + "/attach?code=" + attempt.code);
-const polled = await cliPost("/api/cli/attach/poll", { code: attempt.code, cliSecret: attempt.cliSecret });
+const polled = await cliPost("/api/cli/attach/poll", {
+  code: attempt.code,
+  cliSecret: attempt.cliSecret,
+});
 assert.equal(polled.status, 200);
 assert.equal((await polled.json()).status, "pending");
-const rejected = await cliPost("/api/cli/attach/poll", { code: attempt.code, cliSecret: (attempt.cliSecret[0] === "A" ? "B" : "A") + attempt.cliSecret.slice(1) });
+const rejected = await cliPost("/api/cli/attach/poll", {
+  code: attempt.code,
+  cliSecret:
+    (attempt.cliSecret[0] === "A" ? "B" : "A") + attempt.cliSecret.slice(1),
+});
 assert.equal(rejected.status, 401);
 const installer = await get("/install.sh");
 assert.equal(installer.status, 200);
