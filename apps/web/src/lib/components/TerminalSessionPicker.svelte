@@ -147,7 +147,7 @@
     aria-live="polite"
   >
     {view.loading
-      ? "Loading sessions…"
+      ? (view.activity ?? "Loading sessions…")
       : view.error || "↑/↓ select · Enter open · n new"}
   </p>
   {#snippet actions()}

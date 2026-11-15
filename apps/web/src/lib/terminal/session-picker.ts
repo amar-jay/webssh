@@ -10,6 +10,7 @@ export type SessionPickerView = {
   ready: boolean;
   online: boolean;
   error: string;
+  activity?: string;
 };
 const safeText = (value: string) =>
   value
@@ -26,6 +27,8 @@ export function pickTerminalSession(
     onSelect: (id: string) => void;
     onView: (view: SessionPickerView) => void;
     fetcher?: typeof fetch;
+    busyRetries?: number;
+    busyDelayMs?: number;
   },
 ) {
   const lifetime = new AbortController();
@@ -36,7 +39,8 @@ export function pickTerminalSession(
   let choices: Choice[] = [],
     workspace = "",
     online = false,
-    error = "";
+    error = "",
+    activity = "Loading sessions…";
   const request = options.fetcher ?? fetch;
   const url = `/api/sessions/${encodeURIComponent(reference)}/choices`;
   function render() {
@@ -49,6 +53,7 @@ export function pickTerminalSession(
       ready,
       online,
       error,
+      activity,
     });
   }
 
@@ -66,6 +71,7 @@ export function pickTerminalSession(
     if (loading || finished || lifetime.signal.aborted) return;
     loading = true;
     error = "";
+    activity = "Loading sessions…";
     render();
     try {
       const response = await request(url, {
@@ -105,12 +111,73 @@ export function pickTerminalSession(
       render();
     }
   }
+  async function waitForRelease(id: string) {
+    loading = true;
+    error = "";
+    activity = "Waiting for the previous connection to detach…";
+    render();
+    const signal = AbortSignal.any([
+      lifetime.signal,
+      AbortSignal.timeout(30_000),
+    ]);
+    try {
+      for (let attempt = 0; attempt < (options.busyRetries ?? 15); attempt++) {
+        if (attempt)
+          await new Promise<void>((resolve, reject) => {
+            const done = () => {
+              clearTimeout(timer);
+              signal.removeEventListener("abort", abort);
+              resolve();
+            };
+            const abort = () => {
+              clearTimeout(timer);
+              signal.removeEventListener("abort", abort);
+              reject(Error("cancelled"));
+            };
+            const timer = setTimeout(done, options.busyDelayMs ?? 2000);
+            signal.addEventListener("abort", abort, { once: true });
+            if (signal.aborted) abort();
+          });
+        if (signal.aborted) break;
+        const response = await request(url, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal,
+        });
+        const data = await response.json();
+        if (lifetime.signal.aborted) return;
+        if (!response.ok)
+          throw Error(response.status === 401 ? "unauthorized" : "unavailable");
+        const choice = Array.isArray(data.sessions)
+          ? data.sessions.find((choice: Choice) => choice.id === id)
+          : undefined;
+        if (!choice) {
+          error = "Session is no longer available. Press r to refresh.";
+          return;
+        }
+        if (choice.status !== "active") {
+          select(id);
+          return;
+        }
+      }
+      error =
+        "Session is still in use. Detach the other controller, then retry.";
+    } catch (cause) {
+      if (!lifetime.signal.aborted)
+        error =
+          cause instanceof Error && cause.message === "unauthorized"
+            ? "Sign in again, then reload this page."
+            : "Could not confirm that the previous connection detached. Press r to retry.";
+    } finally {
+      loading = false;
+      render();
+    }
+  }
   async function open() {
     if (loading || !ready || finished || lifetime.signal.aborted) return;
     if (selected < choices.length) {
       if (choices[selected].status === "active") {
-        error = "Session in use. Detach the other controller first.";
-        render();
+        await waitForRelease(choices[selected].id);
         return;
       }
       select(choices[selected].id);
@@ -123,6 +190,7 @@ export function pickTerminalSession(
     }
     loading = true;
     error = "";
+    activity = "Creating session…";
     render();
     try {
       const response = await request(url, {
@@ -198,7 +266,7 @@ export function pickTerminalSession(
     highlight,
     choose(index: number) {
       highlight(index);
-      if (selected === index) void open();
+      if (selected === index) return open();
     },
   };
 }

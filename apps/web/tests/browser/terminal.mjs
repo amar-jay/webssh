@@ -208,12 +208,14 @@ try {
   const choicesRoute = "**/api/sessions/*/choices";
   const grantsRoute = "**/api/sessions/*/grant";
   let creates = 0;
+  let pickerReads = 0;
   const selectedIds = [];
   await page.route(choicesRoute, async (route) => {
     if (route.request().method() === "POST") {
       creates++;
       await route.fulfill({ status: 201, json: { sessionId: newId } });
     } else {
+      pickerReads++;
       await route.fulfill({
         json: {
           backend: "tmux",
@@ -221,7 +223,9 @@ try {
           online: true,
           sessions: [referenceId, existingId].map((id) => ({
             id,
-            status: "connecting",
+            // Reload can retain the old controller until its disconnect arrives.
+            status:
+              id === existingId && pickerReads < 3 ? "active" : "connecting",
             createdAt: 1,
           })),
         },
@@ -255,6 +259,10 @@ try {
         `/api/sessions/${existingId}/grant`,
     );
     await page.keyboard.press("Enter");
+    await picker
+      .getByRole("status")
+      .filter({ hasText: "Waiting for the previous connection" })
+      .waitFor();
     assert.equal((await existingGrant).status(), 401);
     await page
       .getByRole("status")

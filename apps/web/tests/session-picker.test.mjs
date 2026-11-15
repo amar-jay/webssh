@@ -86,6 +86,8 @@ test("busy sessions do not take over and network errors do not auto-create or au
   const h = harness();
   let calls = 0;
   const picker = pickTerminalSession(h.terminal, a, {
+    busyRetries: 2,
+    busyDelayMs: 0,
     fetcher: async () => {
       calls++;
       return list([{ id: a, status: "active" }]);
@@ -93,9 +95,9 @@ test("busy sessions do not take over and network errors do not auto-create or au
     onSelect: (id) => h.selected.push(id),
   });
   await picker.done;
-  picker.input("\r");
+  await picker.choose(0);
   assert.deepEqual(h.selected, []);
-  assert.equal(calls, 1);
+  assert.equal(calls, 3);
   assert.match(h.views.at(-1).error, /Detach the other controller/);
   picker.dispose();
   const other = harness();
@@ -176,4 +178,58 @@ test("pointer selection shares the keyboard state and cannot select twice", asyn
   picker.choose(0);
   assert.deepEqual(h.selected, [b]);
   picker.dispose();
+});
+
+test("a stale active snapshot after reload reconnects once the previous controller releases", async () => {
+  const h = harness();
+  let calls = 0;
+  const picker = pickTerminalSession(h.terminal, a, {
+    busyRetries: 3,
+    busyDelayMs: 0,
+    fetcher: async (_url, options) => {
+      assert.equal(
+        options.method,
+        undefined,
+        "waiting must only query metadata",
+      );
+      calls++;
+      return list([{ id: a, status: calls < 3 ? "active" : "connecting" }]);
+    },
+    onSelect: (id) => h.selected.push(id),
+  });
+  await picker.done;
+  assert.deepEqual(h.selected, []);
+  await picker.choose(0);
+  assert.equal(calls, 3);
+  assert.deepEqual(h.selected, [a]);
+  assert(
+    h.views.some(
+      (view) => view.loading && /previous connection/.test(view.activity),
+    ),
+  );
+  picker.dispose();
+});
+
+test("leaving during controller-release polling aborts without attaching", async () => {
+  const h = harness();
+  let calls = 0,
+    aborted = false;
+  const picker = pickTerminalSession(h.terminal, a, {
+    fetcher: async (_url, { signal }) => {
+      if (++calls === 1) return list([{ id: a, status: "active" }]);
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener("abort", () => {
+          aborted = true;
+          reject(Error("aborted"));
+        }),
+      );
+    },
+    onSelect: (id) => h.selected.push(id),
+  });
+  await picker.done;
+  const waiting = picker.choose(0);
+  picker.dispose();
+  await waiting;
+  assert(aborted);
+  assert.deepEqual(h.selected, []);
 });
