@@ -22,37 +22,6 @@ type writer struct {
 	mu   sync.Mutex
 }
 
-func (w *writer) send(m protocol.Message) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if err := w.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		return err
-	}
-	return protocol.Write(w.conn, m)
-}
-func (w *writer) fail(code string) {
-	_ = w.send(protocol.Message{Type: "error", Error: code, Retryable: code == "session_busy"})
-}
-
-func (a *Agent) authorize(token string) bool { return a.authorizeContext(context.Background(), token) }
-
-func (a *Agent) authorizeContext(ctx context.Context, token string) bool {
-	// Grant-shaped tokens never fall back to the development per-run secret.
-	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
-		sessionID, err := a.opts.Grants.Verify(token, time.Now())
-		if err != nil || (!a.opts.AllowRunSessions && sessionID != a.opts.SessionID) {
-			return false
-		}
-		check, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		return a.opts.CheckAccess != nil && a.opts.CheckAccess(check, sessionID, strings.Split(token, ".")[3]) == nil
-	}
-	if a.opts.AllowDevToken && a.opts.Token != "" {
-		return subtle.ConstantTimeCompare([]byte(token), []byte(a.opts.Token)) == 1
-	}
-	return false
-}
-
 func (a *Agent) handle(parent context.Context, conn net.Conn) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
@@ -161,6 +130,25 @@ func (a *Agent) readHandshake(conn net.Conn, out *writer) (hello protocol.Messag
 		return hello, sessionID, caps, false
 	}
 	return hello, sessionID, caps, true
+}
+
+func (a *Agent) authorize(token string) bool { return a.authorizeContext(context.Background(), token) }
+
+func (a *Agent) authorizeContext(ctx context.Context, token string) bool {
+	// Grant-shaped tokens never fall back to the development per-run secret.
+	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
+		sessionID, err := a.opts.Grants.Verify(token, time.Now())
+		if err != nil || (!a.opts.AllowRunSessions && sessionID != a.opts.SessionID) {
+			return false
+		}
+		check, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		return a.opts.CheckAccess != nil && a.opts.CheckAccess(check, sessionID, strings.Split(token, ".")[3]) == nil
+	}
+	if a.opts.AllowDevToken && a.opts.Token != "" {
+		return subtle.ConstantTimeCompare([]byte(token), []byte(a.opts.Token)) == 1
+	}
+	return false
 }
 
 func (a *Agent) monitorAccess(ctx context.Context, conn net.Conn, token, sessionID string, ended *bool) func() {
@@ -396,23 +384,6 @@ func (a *Agent) runSession(ctx context.Context, conn net.Conn, out *writer, hell
 	return ended
 }
 
-func pumpOutput(child *process, out *writer, outputDone chan<- error) {
-	buf := make([]byte, 16<<10)
-	for {
-		n, err := child.file.Read(buf)
-		if n > 0 {
-			if sendErr := out.send(protocol.Message{Type: "output", Data: buf[:n]}); sendErr != nil {
-				outputDone <- sendErr
-				return
-			}
-		}
-		if err != nil {
-			outputDone <- nil
-			return
-		} // PTY EOF may be EIO on Unix.
-	}
-}
-
 func (a *Agent) pumpInput(conn net.Conn, child *process, out *writer, inputDone chan<- error) {
 	for {
 		_ = conn.SetReadDeadline(time.Now().Add(a.opts.ClientIdleTimeout))
@@ -472,6 +443,23 @@ func (a *Agent) pumpInput(conn net.Conn, child *process, out *writer, inputDone 
 	}
 }
 
+func pumpOutput(child *process, out *writer, outputDone chan<- error) {
+	buf := make([]byte, 16<<10)
+	for {
+		n, err := child.file.Read(buf)
+		if n > 0 {
+			if sendErr := out.send(protocol.Message{Type: "output", Data: buf[:n]}); sendErr != nil {
+				outputDone <- sendErr
+				return
+			}
+		}
+		if err != nil {
+			outputDone <- nil
+			return
+		} // PTY EOF may be EIO on Unix.
+	}
+}
+
 func writeAll(w io.Writer, b []byte) error {
 	for len(b) > 0 {
 		n, err := w.Write(b)
@@ -484,4 +472,15 @@ func writeAll(w io.Writer, b []byte) error {
 		b = b[n:]
 	}
 	return nil
+}
+func (w *writer) send(m protocol.Message) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
+	return protocol.Write(w.conn, m)
+}
+func (w *writer) fail(code string) {
+	_ = w.send(protocol.Message{Type: "error", Error: code, Retryable: code == "session_busy"})
 }
