@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/urfave/cli/v3"
 
@@ -58,7 +59,7 @@ func serveCommand() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "json",
-				Usage: "print connection credentials as one JSON record",
+				Usage: "print a browser URL as JSON (development mode includes connection credentials)",
 			},
 			&cli.BoolFlag{
 				Name:  "dev-token",
@@ -101,20 +102,22 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	}
 	creds, credErr := credentials.Load(credFile)
 	devToken := cmd.Bool("dev-token")
+	var control *pairing.Client
+	var runID string
 	switch {
 	case credErr == nil:
-		control, err := pairing.NewClient(creds.Origin)
+		control, err = pairing.NewClient(creds.Origin)
 		if err != nil {
 			return errors.New("paired origin is missing or invalid; pair again")
 		}
-		sessionID, err := control.AgentSession(ctx, creds, "", "")
+		runID, err = newDevToken() // Random public run/session handle, no credentials in the URL.
 		if err != nil {
-			return fmt.Errorf("authorize agent run: %w", err)
-		}
-		opts.SessionID = sessionID
-		opts.CheckAccess = func(ctx context.Context, id, nonce string) error {
-			_, err := control.AgentSession(ctx, creds, id, nonce)
 			return err
+		}
+		opts.SessionID = runID
+		opts.AllowRunSessions = true
+		opts.CheckAccess = func(ctx context.Context, id, nonce string) error {
+			return control.RunAccess(ctx, creds, runID, id, nonce)
 		}
 		opts.Grants = agent.NewGrantVerifier(creds.AgentID, creds.GrantKey)
 		if devToken {
@@ -139,21 +142,72 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return server.Run(ctx, func(info agent.Info) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	heartbeatDone := make(chan error, 1)
+	heartbeatStarted := false
+	if control != nil {
+		// Even a lost registration response gets bounded cleanup. No URL is printed until announce succeeds.
+		defer func() {
+			cleanup, done := context.WithTimeout(context.Background(), 4*time.Second)
+			defer done()
+			_ = retryControl(cleanup, func(c context.Context) error {
+				return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "end", RunID: runID})
+			})
+		}()
+		err = retryControl(ctx, func(c context.Context) error {
+			return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "start", RunID: runID, MachineName: cfg.MachineName, WorkspaceLabel: filepath.Base(workspace)})
+		})
+		if err != nil {
+			return errors.New("could not register agent run; check your connection and pairing")
+		}
+	}
+	err = server.Run(ctx, func(info agent.Info) error {
+		if control != nil {
+			if err := retryControl(ctx, func(c context.Context) error {
+				return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "announce", RunID: runID, Address: info.Address, Port: info.Port, DERPMapURL: opts.DERPMapURL})
+			}); err != nil {
+				return errors.New("could not announce agent listener; no browser session was opened")
+			}
+			heartbeatStarted = true
+			go func() {
+				err := heartbeatRun(ctx, 10*time.Second, func(c context.Context) error {
+					return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "heartbeat", RunID: runID})
+				})
+				heartbeatDone <- err
+				if err != nil {
+					cancel()
+				}
+			}()
+			browserURL := control.Origin + "/s/" + runID
+			if cmd.Bool("json") && !devToken {
+				return json.NewEncoder(os.Stdout).Encode(struct {
+					Version   int    `json:"version"`
+					SessionID string `json:"sessionId"`
+					URL       string `json:"url"`
+				}{protocol.Version, runID, browserURL})
+			}
+			if !devToken {
+				_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\nKeep this command running · Ctrl+C to stop\n", cfg.MachineName, info.Workspace, browserURL)
+				return err
+			}
+		}
 		if cmd.Bool("json") {
 			return json.NewEncoder(os.Stdout).Encode(info)
 		}
-		if credErr == nil {
-			fmt.Fprintf(os.Stdout, "\x1b[38;2;192;153;255mWebSSH\x1b[0m · %s\nPaired agent: %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nAuth: HMAC grants\n", cfg.MachineName, creds.AgentID, info.Workspace, info.Address, info.Port)
-			if info.Token != "" {
-				fmt.Fprintf(os.Stdout, "Dev token: %s\n", info.Token)
-			}
-			fmt.Fprintln(os.Stdout, "\n\x1b[38;2;130;139;184mConnection-scoped shells · Ctrl+C to stop\x1b[0m")
-			return nil
-		}
-		_, err := fmt.Fprintf(os.Stdout, "\x1b[38;2;192;153;255mWebSSH\x1b[0m · %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\n\x1b[38;2;130;139;184mDevelopment token · Ctrl+C to stop\x1b[0m\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token)
+		_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\nDevelopment token · Ctrl+C to stop\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token)
 		return err
 	})
+	cancel()
+	if heartbeatStarted {
+		if heartbeatErr := <-heartbeatDone; heartbeatErr != nil && err == nil {
+			err = heartbeatErr
+		}
+	}
+	if control != nil && err != nil {
+		return errors.New("workspace agent stopped; check your connection and pairing, then run serve again")
+	}
+	return err
 }
 
 func newDevToken() (string, error) {

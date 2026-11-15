@@ -62,3 +62,18 @@ test('failed pairing completion revokes orphan registration and aborts claim',as
  assert.equal(response.status,400);assert.deepEqual(actions,['revoke','abort']);
  assert.equal((await response.json()).error,'request_failed');
 });
+
+test('session resolution authenticates owner and keeps descriptors out of error diagnostics',async()=>{
+ let crash=false;
+ const namespace={idFromName:name=>{assert.equal(name,'owner:42');return name;},get:()=>({
+  getTerminalSession:async(owner,id)=>{assert.equal(owner,'42');assert.equal(id,'opaque');return {terminalSessionId:id};},
+  resolveSession:async(owner,id,browser)=>{assert.equal(owner,'42');assert.equal(id,'opaque');assert.equal(browser,'browser');if(crash)throw Error('secret_token_private_address');return {address:'tcPrivateAddress',port:2222,grant:'v1.secret'};}
+ })};
+ const event={locals:{user:{ownerId:'42',sessionId:'browser'}},params:{session_id:'opaque'},platform:{env:{WEBSSH_STATE:namespace}}};
+ const response=await grant.POST(event);
+ assert.equal(response.headers.get('cache-control'),'no-store');
+ assert.equal((await response.json()).grant,'v1.secret');
+ crash=true;const failure=await grant.POST(event);
+ assert.equal(failure.status,503);assert.deepEqual(await failure.json(),{error:'session_unavailable'});
+ event.locals.user=null;assert.equal((await grant.POST(event)).status,401);
+});

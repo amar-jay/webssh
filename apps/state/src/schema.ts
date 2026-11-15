@@ -88,6 +88,23 @@ ALTER TABLE terminal_sessions ADD COLUMN lease_expires_at INTEGER;
 ALTER TABLE terminal_sessions ADD COLUMN last_seen_at INTEGER;
 ALTER TABLE agents ADD COLUMN rotation_id TEXT;
 ALTER TABLE agents ADD COLUMN previous_token_hash TEXT;` }
+, { id: 4, sql: `CREATE TABLE agent_runs (
+ run_id TEXT PRIMARY KEY NOT NULL,
+ owner_id TEXT NOT NULL,
+ agent_id TEXT NOT NULL,
+ machine_name TEXT NOT NULL,
+ workspace_label TEXT NOT NULL,
+ address TEXT,
+ port INTEGER,
+ derp_map_url TEXT,
+ status TEXT NOT NULL,
+ created_at INTEGER NOT NULL,
+ last_seen_at INTEGER NOT NULL,
+ ended_at INTEGER
+);
+CREATE INDEX agent_runs_owner ON agent_runs(owner_id);
+ALTER TABLE terminal_sessions ADD COLUMN run_id TEXT;
+CREATE INDEX terminal_sessions_run ON terminal_sessions(run_id);` }
 ];
 
 export function applyMigrations(

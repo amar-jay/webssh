@@ -3,6 +3,9 @@ import { encodeGrant, randomCode, randomId, sha256, timingSafeEqual } from './cr
 import { applyMigrations } from './schema.js';
 import type {
   AgentRecord,
+  RunRecord,
+  RunUpdate,
+  ResolvedSession,
   GrantMintResult,
   OwnerRecord,
   PairingPollResult,
@@ -17,6 +20,8 @@ export interface Env {
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const GRANT_TTL_SEC = 60;
+const RUN_OFFLINE_MS = 35_000;
+const RUN_EXPIRE_MS = 24 * 60 * 60 * 1000;
 const PAIRING_IP_LIMIT = 10;
 const PAIRING_GLOBAL_LIMIT = 200;
 const PAIRING_WINDOW_MS = 60 * 60 * 1000;
@@ -181,7 +186,7 @@ export class WebSSHState extends DurableObject<Env> {
       ownerId,
       agentId,
       workspaceLabel: workspaceLabel ?? null,
-      status: 'pending',
+      status: 'connecting',
       createdAt: now,
       endedAt: null
     };
@@ -193,7 +198,7 @@ export class WebSSHState extends DurableObject<Env> {
   ): Promise<TerminalSessionRecord | null> {
     const row = this.ctx.storage.sql
       .exec(
-        `SELECT terminal_session_id, owner_id, agent_id, workspace_label, status, created_at, ended_at
+        `SELECT terminal_session_id, owner_id, agent_id, workspace_label, status, created_at, ended_at, run_id, active_nonce, lease_expires_at
          FROM terminal_sessions WHERE terminal_session_id = ? AND owner_id = ?`,
         terminalSessionId,
         ownerId
@@ -204,18 +209,30 @@ export class WebSSHState extends DurableObject<Env> {
           owner_id: string;
           agent_id: string;
           workspace_label: string | null;
-          status: TerminalSessionRecord['status'];
+          status: string;
+          run_id: string | null;
+          active_nonce: string | null;
+          lease_expires_at: number | null;
           created_at: number;
           ended_at: number | null;
         }
       | undefined;
     if (!row) return null;
+    let status: TerminalSessionRecord['status'] = row.status === 'pending' ? 'connecting' : row.status as TerminalSessionRecord['status'];
+    if (row.run_id && !['ended','expired'].includes(status)) {
+      const run = this.runRow(ownerId, row.run_id);
+      if (!run || run.status === 'expired') status = 'expired';
+      else if (run.status === 'ended') status = 'ended';
+      else if (run.status === 'offline' || !run.address || Date.now() - Number(run.last_seen_at) > RUN_OFFLINE_MS) status = 'offline';
+      else status = row.active_nonce && Number(row.lease_expires_at) > Date.now() ? 'active' : 'connecting';
+    }
     return {
+      runId: row.run_id,
       terminalSessionId: row.terminal_session_id,
       ownerId: row.owner_id,
       agentId: row.agent_id,
       workspaceLabel: row.workspace_label,
-      status: row.status,
+      status,
       createdAt: row.created_at,
       endedAt: row.ended_at
     };
@@ -225,7 +242,7 @@ export class WebSSHState extends DurableObject<Env> {
     const browser = await this.getBrowserSession(browserSessionId);
     if (!browser || browser.ownerId !== ownerId) throw new Error('unauthorized');
     const session = await this.getTerminalSession(ownerId, terminalSessionId);
-    if (!session || session.status === 'ended' || session.status === 'expired') {
+    if (!session || session.status === 'ended' || session.status === 'expired' || session.status === 'offline') {
       throw new Error('session_unavailable');
     }
     const grantKey = await this.getAgentGrantKey(ownerId, session.agentId);
@@ -243,10 +260,6 @@ export class WebSSHState extends DurableObject<Env> {
       expUnix,
       Date.now(),
       browserSessionId
-    );
-    this.ctx.storage.sql.exec(
-      `UPDATE terminal_sessions SET status = 'active' WHERE terminal_session_id = ? AND status = 'pending'`,
-      terminalSessionId
     );
     return {
       grant,
@@ -286,7 +299,7 @@ export class WebSSHState extends DurableObject<Env> {
     });
   }
 
-  async agentSession(ownerId: string, agentId: string, agentToken: string, sessionId?: string, nonce?: string) {
+  async agentSession(ownerId: string, agentId: string, agentToken: string, sessionId?: string, nonce?: string, runId?: string) {
     const hash = await sha256(agentToken);
     return this.ctx.storage.transactionSync(() => {
       const agent = this.ctx.storage.sql.exec(`SELECT token_hash, revoked_at, token_expires_at FROM agents WHERE agent_id = ? AND owner_id = ?`, agentId, ownerId).next().value;
@@ -297,14 +310,18 @@ export class WebSSHState extends DurableObject<Env> {
         return { sessionId: id };
       }
       const now=Date.now();
-      const session=this.ctx.storage.sql.exec(`SELECT status, active_nonce, lease_expires_at FROM terminal_sessions WHERE terminal_session_id = ? AND owner_id = ? AND agent_id = ?`,sessionId,ownerId,agentId).next().value;
+      const session=this.ctx.storage.sql.exec(`SELECT status, active_nonce, lease_expires_at, run_id FROM terminal_sessions WHERE terminal_session_id = ? AND owner_id = ? AND agent_id = ?`,sessionId,ownerId,agentId).next().value;
       if (!session || !['pending','active'].includes(String(session.status))) throw new Error('session_unavailable');
+      if (session.run_id) {
+        const run = this.runRow(ownerId, String(session.run_id));
+        if (runId !== session.run_id || !run || ['ended','expired'].includes(String(run.status))) throw new Error('session_unavailable');
+      }
       if (!nonce) return {sessionId}; // Agent/run status, never attachment authorization.
       const checking=nonce.startsWith('check:');
       const releasing=nonce.startsWith('release:');
       const leaseNonce=(checking||releasing)?nonce.slice(nonce.indexOf(':')+1):nonce;
       if (releasing) {
-        this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = NULL, lease_expires_at = NULL, last_seen_at = ? WHERE terminal_session_id = ? AND active_nonce = ?`,now,sessionId,leaseNonce);
+        this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'ended', ended_at = ?, active_nonce = NULL, lease_expires_at = NULL WHERE terminal_session_id = ? AND active_nonce = ?`,now,sessionId,leaseNonce);
         return {sessionId};
       }
       if (checking) {
@@ -318,6 +335,114 @@ export class WebSSHState extends DurableObject<Env> {
       this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = ?, lease_expires_at = ?, last_seen_at = ?, status = 'active' WHERE terminal_session_id = ?`,leaseNonce,now+10000,now,sessionId);
       return { sessionId };
     });
+  }
+
+
+  // --- Authenticated agent runs and safe dashboard metadata ---
+
+  private expireRuns() {
+    const now = Date.now();
+    this.ctx.storage.sql.exec(`UPDATE agent_runs SET status = 'expired', address = NULL, port = NULL, derp_map_url = NULL WHERE status NOT IN ('ended','expired') AND last_seen_at <= ?`, now - RUN_EXPIRE_MS);
+    this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'expired', active_nonce = NULL, lease_expires_at = NULL WHERE status NOT IN ('ended','expired') AND run_id IN (SELECT run_id FROM agent_runs WHERE status = 'expired')`);
+    this.ctx.storage.sql.exec(`DELETE FROM terminal_sessions WHERE status = 'expired' AND created_at < ?`, now - 7 * RUN_EXPIRE_MS);
+    this.ctx.storage.sql.exec(`DELETE FROM agent_runs WHERE status IN ('ended','expired') AND last_seen_at < ?`, now - 7 * RUN_EXPIRE_MS);
+  }
+
+  private runRow(ownerId: string, runId: string) {
+    this.expireRuns();
+    return this.ctx.storage.sql.exec(`SELECT * FROM agent_runs WHERE run_id = ? AND owner_id = ?`, runId, ownerId).next().value;
+  }
+
+  async listRuns(ownerId: string): Promise<RunRecord[]> {
+    this.expireRuns();
+    const rows = this.ctx.storage.sql.exec(`SELECT r.* FROM agent_runs r JOIN agents a ON a.agent_id = r.agent_id AND a.owner_id = r.owner_id WHERE r.owner_id = ? AND a.revoked_at IS NULL ORDER BY r.created_at DESC LIMIT 100`, ownerId);
+    return [...rows].map(row => ({
+      runId: String(row.run_id), agentId: String(row.agent_id), machineName: String(row.machine_name), workspaceLabel: String(row.workspace_label),
+      status: (['ended','expired'].includes(String(row.status)) ? row.status : row.status === 'offline' || Date.now() - Number(row.last_seen_at) > RUN_OFFLINE_MS ? 'offline' : !row.address ? 'starting' : 'online') as RunRecord['status'],
+      lastSeenAt: Number(row.last_seen_at), createdAt: Number(row.created_at)
+    }));
+  }
+
+  async listTerminalSessions(ownerId: string): Promise<TerminalSessionRecord[]> {
+    this.expireRuns();
+    const ids = [...this.ctx.storage.sql.exec(`SELECT terminal_session_id FROM terminal_sessions WHERE owner_id = ? ORDER BY created_at DESC LIMIT 100`, ownerId)];
+    const sessions = await Promise.all(ids.map(row => this.getTerminalSession(ownerId, String(row.terminal_session_id))));
+    return sessions.filter((s): s is TerminalSessionRecord => s !== null);
+  }
+
+  async agentRun(ownerId: string, agentId: string, token: string, update: RunUpdate): Promise<{sessionId: string}> {
+    const hash = await sha256(token);
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(update.runId)) throw new Error('invalid_run');
+    const result = this.ctx.storage.transactionSync(() => {
+      const agent = this.ctx.storage.sql.exec(`SELECT token_hash, revoked_at, token_expires_at FROM agents WHERE agent_id = ? AND owner_id = ?`, agentId, ownerId).next().value;
+      if (!agent || agent.revoked_at != null || Number(agent.token_expires_at) <= Date.now() || !timingSafeEqual(String(agent.token_hash), hash)) throw new Error('unauthorized');
+      const now = Date.now();
+      if (update.operation === 'start') {
+        if (!update.machineName || update.machineName.length > 64 || !update.workspaceLabel || update.workspaceLabel.length > 128 || /[\x00-\x1f\x7f]/.test(update.machineName + update.workspaceLabel)) throw new Error('invalid_run');
+        const existing = this.runRow(ownerId, update.runId);
+        if (existing) {
+          if (existing.agent_id !== agentId || ['ended','expired'].includes(String(existing.status))) throw new Error('session_unavailable');
+          return {sessionId: update.runId}; // Idempotent startup retry after a lost response.
+        }
+        this.ctx.storage.sql.exec(`INSERT INTO agent_runs (run_id,owner_id,agent_id,machine_name,workspace_label,status,created_at,last_seen_at) VALUES (?,?,?,?,?,'starting',?,?)`, update.runId,ownerId,agentId,update.machineName,update.workspaceLabel,now,now);
+        this.ctx.storage.sql.exec(`INSERT INTO terminal_sessions (terminal_session_id,owner_id,agent_id,workspace_label,status,created_at,run_id) VALUES (?,?,?,?,'pending',?,?)`,update.runId,ownerId,agentId,update.workspaceLabel,now,update.runId);
+      } else {
+        const run = this.runRow(ownerId, update.runId);
+        if (!run || run.agent_id !== agentId) throw new Error('session_unavailable');
+        if (run.status === 'ended' && update.operation === 'end') return {sessionId:update.runId};
+        if (['ended','expired'].includes(String(run.status))) throw new Error('session_unavailable');
+        if (update.operation === 'announce') {
+          if (!update.address || !/^tc[A-Za-z0-9:_-]{10,250}$/.test(update.address) || !Number.isInteger(update.port) || update.port! < 1 || update.port! > 65535) throw new Error('invalid_descriptor');
+          if (update.derpMapURL) {
+            const url = new URL(update.derpMapURL);
+            if (url.protocol !== 'https:' || url.username || url.password || url.hash || update.derpMapURL.length > 2048) throw new Error('invalid_descriptor');
+          }
+          this.ctx.storage.sql.exec(`UPDATE agent_runs SET address = ?, port = ?, derp_map_url = ?, status = 'online', last_seen_at = ? WHERE run_id = ?`,update.address,update.port!,update.derpMapURL || null,now,update.runId);
+        } else if (update.operation === 'heartbeat') {
+          if (!run.address) throw new Error('session_unavailable');
+          this.ctx.storage.sql.exec(`UPDATE agent_runs SET status = 'online', last_seen_at = ? WHERE run_id = ?`,now,update.runId);
+        } else if (update.operation === 'offline' || update.operation === 'end') {
+          this.ctx.storage.sql.exec(`UPDATE agent_runs SET status = ?, last_seen_at = ?, ended_at = ?, address = NULL, port = NULL, derp_map_url = NULL WHERE run_id = ?`,update.operation === 'end' ? 'ended' : 'offline',now,update.operation === 'end' ? now : null,update.runId);
+          if (update.operation === 'end') this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'ended', ended_at = ?, active_nonce = NULL, lease_expires_at = NULL WHERE run_id = ? AND status NOT IN ('ended','expired')`,now,update.runId);
+        } else throw new Error('invalid_operation');
+      }
+      this.ctx.storage.sql.exec(`UPDATE agents SET last_seen_at = ? WHERE agent_id = ? AND owner_id = ?`,now,agentId,ownerId);
+      return {sessionId:update.runId};
+    });
+    await this.ctx.storage.setAlarm(Date.now()+60_000);
+    return result;
+  }
+
+  async startRunSession(ownerId: string, runId: string): Promise<TerminalSessionRecord> {
+    const id = await randomId(16);
+    const sessionId = this.ctx.storage.transactionSync(() => {
+      const run = this.runRow(ownerId, runId);
+      if (!run || run.status !== 'online' || !run.address || Date.now() - Number(run.last_seen_at) > RUN_OFFLINE_MS) throw new Error('agent_offline');
+      const agent = this.ctx.storage.sql.exec(`SELECT revoked_at, token_expires_at FROM agents WHERE agent_id = ? AND owner_id = ?`,String(run.agent_id),ownerId).next().value;
+      if (!agent || agent.revoked_at != null || Number(agent.token_expires_at) <= Date.now()) throw new Error('agent_offline');
+      const existing = this.ctx.storage.sql.exec(`SELECT terminal_session_id FROM terminal_sessions WHERE run_id = ? AND owner_id = ? AND status IN ('pending','active') ORDER BY created_at DESC LIMIT 1`, runId, ownerId).next().value;
+      if (existing) return String(existing.terminal_session_id);
+      this.ctx.storage.sql.exec(`INSERT INTO terminal_sessions (terminal_session_id,owner_id,agent_id,workspace_label,status,created_at,run_id) VALUES (?,?,?,?,'pending',?,?)`,id,ownerId,String(run.agent_id),String(run.workspace_label),Date.now(),runId);
+      return id;
+    });
+    return (await this.getTerminalSession(ownerId,sessionId))!;
+  }
+
+  async endTerminalSession(ownerId: string, id: string): Promise<boolean> {
+    const result = this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'ended', ended_at = ?, active_nonce = NULL, lease_expires_at = NULL WHERE terminal_session_id = ? AND owner_id = ? AND status NOT IN ('ended','expired')`,Date.now(),id,ownerId);
+    return result.rowsWritten > 0;
+  }
+
+  async resolveSession(ownerId: string, id: string, browserId: string): Promise<ResolvedSession> {
+    const session = await this.getTerminalSession(ownerId,id);
+    if (!session) throw new Error('not_found');
+    if (session.status === 'offline') throw new Error('agent_offline');
+    if (['ended','expired'].includes(session.status)) throw new Error('session_' + session.status);
+    const run = session.runId ? this.runRow(ownerId,session.runId) : null;
+    if (!run || run.status !== 'online' || !run.address || Date.now() - Number(run.last_seen_at) > RUN_OFFLINE_MS) throw new Error('agent_offline');
+    if (session.status === 'active') throw new Error('session_busy');
+    const grant = await this.mintGrant(ownerId,id,browserId);
+    return {...grant, address:String(run.address),port:Number(run.port),...(run.derp_map_url ? {derpMapURL:String(run.derp_map_url)} : {})};
   }
 
   // --- Pairing hub (object name: pairing) ---
@@ -473,9 +598,10 @@ export class WebSSHState extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const now = Date.now();
+    this.expireRuns();
     this.ctx.storage.sql.exec(`DELETE FROM grant_nonces WHERE exp_unix < ? AND nonce NOT IN (SELECT active_nonce FROM terminal_sessions WHERE active_nonce IS NOT NULL AND lease_expires_at > ?)`,Math.floor(now/1000),now);
     this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET active_nonce = NULL, lease_expires_at = NULL WHERE lease_expires_at <= ?`,now);
-    this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'expired', ended_at = ? WHERE COALESCE(last_seen_at,created_at) < ? AND status IN ('pending','active')`,now,now-86400000);
+    this.ctx.storage.sql.exec(`UPDATE terminal_sessions SET status = 'expired' WHERE run_id IS NULL AND COALESCE(last_seen_at,created_at) < ? AND status IN ('pending','active')`,now-86400000);
     this.ctx.storage.sql.exec(`DELETE FROM terminal_sessions WHERE ended_at < ?`,now-7*86400000);
     this.ctx.storage.sql.exec(`DELETE FROM browser_sessions WHERE expires_at < ?`,now-86400000);
     this.ctx.storage.sql.exec(`UPDATE pairing_attempts SET result_json = NULL, status = 'expired' WHERE expires_at <= ?`, now);

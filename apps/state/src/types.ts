@@ -18,7 +18,8 @@ export type TerminalSessionRecord = {
   ownerId: string;
   agentId: string;
   workspaceLabel: string | null;
-  status: 'pending' | 'active' | 'ended' | 'expired';
+  status: 'connecting' | 'offline' | 'active' | 'ended' | 'expired';
+  runId?: string | null;
   createdAt: number;
   endedAt: number | null;
 };
@@ -52,6 +53,14 @@ export type PublicError = { error: string };
 
 /** RPC surface shared without importing Worker runtime declarations into DOM code. */
 export interface StateAPI {
+ listAgents(ownerId:string):Promise<AgentRecord[]>;
+ listRuns(ownerId:string):Promise<RunRecord[]>;
+ listTerminalSessions(ownerId:string):Promise<TerminalSessionRecord[]>;
+ agentRun(ownerId:string,agentId:string,token:string,update:RunUpdate):Promise<{sessionId:string}>;
+ startRunSession(ownerId:string,runId:string):Promise<TerminalSessionRecord>;
+ endTerminalSession(ownerId:string,id:string):Promise<boolean>;
+ resolveSession(ownerId:string,id:string,browserId:string):Promise<ResolvedSession>;
+
  limitRequest(ip:string,kind:'poll'|'agent'):Promise<void>;
  agentCredential(ownerId:string,agentId:string,token:string,operation:'renew'|'revoke',replacementToken?:string,operationId?:string):Promise<{ok:boolean}>;
  ensureOwner(ownerId:string, login:string):Promise<OwnerRecord>;
@@ -68,5 +77,25 @@ export interface StateAPI {
  completePairing(id:string,ownerId:string,agent:{agentId:string;agentToken:string;grantKey:string;machineName:string}):Promise<void>;
  abortPairing(id:string,ownerId:string):Promise<void>;
  pollPairing(code:string,secret:string):Promise<PairingPollResult>;
- agentSession(ownerId:string,agentId:string,token:string,id?:string,nonce?:string):Promise<{sessionId:string}>;
+ agentSession(ownerId:string,agentId:string,token:string,id?:string,nonce?:string,runId?:string):Promise<{sessionId:string}>;
 }
+
+export type RunUpdate = {
+ operation: 'start' | 'announce' | 'heartbeat' | 'offline' | 'end';
+ runId: string;
+ machineName?: string;
+ workspaceLabel?: string;
+ address?: string;
+ port?: number;
+ derpMapURL?: string;
+};
+
+/** Safe dashboard metadata, deliberately excludes transport descriptors and credentials. */
+export type RunRecord = {
+ runId: string; agentId: string; machineName: string; workspaceLabel: string;
+ status: 'starting' | 'online' | 'offline' | 'ended' | 'expired';
+ lastSeenAt: number; createdAt: number;
+};
+export type ResolvedSession = GrantMintResult & {
+ address: string; port: number; derpMapURL?: string;
+};

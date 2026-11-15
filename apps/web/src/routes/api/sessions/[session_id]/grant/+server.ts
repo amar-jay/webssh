@@ -3,7 +3,7 @@ import type { AuthEnv } from '#lib/auth/env.js';
 import { jsonError, noStore, ownerStub } from '#lib/state/client.js';
 import { runtimeEnv } from '#lib/cloudflare/runtime.js';
 
-/** Mint a short-lived attach grant for an owned terminal session. No Tailcat address here yet (milestone 3). */
+/** Resolve the descriptor and a single-use grant only for the authenticated owner. */
 export const POST: RequestHandler = async ({ params, platform, locals }) => {
   if (!locals.user) return jsonError('unauthorized', 401);
   const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
@@ -14,13 +14,13 @@ export const POST: RequestHandler = async ({ params, platform, locals }) => {
     const stub = ownerStub(env.WEBSSH_STATE as never, locals.user.ownerId);
     const session = await stub.getTerminalSession(locals.user.ownerId, terminalSessionId);
     if (!session) return jsonError('not_found', 404);
-    const grant = await stub.mintGrant(locals.user.ownerId, terminalSessionId, locals.user.sessionId);
+    const grant = await stub.resolveSession(locals.user.ownerId, terminalSessionId, locals.user.sessionId);
     return noStore(grant);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'grant_failed';
-    if (message === 'session_unavailable' || message === 'agent_revoked') {
+    if (['session_unavailable','agent_revoked','agent_offline','session_ended','session_expired','session_busy'].includes(message)) {
       return jsonError(message, 409);
     }
-    return jsonError(message, 400);
+    return jsonError('session_unavailable', 503);
   }
 };

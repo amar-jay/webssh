@@ -76,3 +76,12 @@ test('large input is split in order and EOF is distinct from shell exit', async 
   assert(frames.every(message=>message.data.every(byte=>byte===120)));
   h.end();assert.deepEqual(await session.done,{state:'disconnected'});
 });
+
+test('connection deadline includes client creation and closes late resources', async () => {
+ let finish, closed=0;
+ const h=setup();
+ const session=attachRemoteSession({terminal:h.terminal},credentials,{connectionTimeoutMs:10,transport:{createClient:()=>new Promise(resolve=>{finish=resolve;})}});
+ assert.deepEqual(await session.done,{state:'failed'});
+ finish({close:async()=>{closed++;},dial:async()=>{throw Error('must not dial after timeout');}});
+ await tick();assert(closed>0);
+});

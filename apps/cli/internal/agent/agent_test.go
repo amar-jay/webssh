@@ -306,3 +306,60 @@ func TestLiveConnectionClosesOnOnlineRevocation(t *testing.T) {
 		}
 	}
 }
+
+func TestAdditionalSessionRequiresOnlineRunBinding(t *testing.T) {
+	a := testAgent(t, "/bin/sh")
+	a.opts.Grants = NewGrantVerifier("agent", "key")
+	a.opts.SessionID = "run"
+	a.opts.AllowRunSessions = true
+	a.opts.AllowDevToken = false
+	a.opts.CheckAccess = func(_ context.Context, sessionID, nonce string) error {
+		if sessionID != "allowed-session" {
+			return errors.New("foreign run")
+		}
+		return nil
+	}
+	if a.authorize(EncodeGrant("agent", "key", "foreign-session", "foreign", time.Now().Unix()+60)) {
+		t.Fatal("foreign session admitted")
+	}
+	if !a.authorize(EncodeGrant("agent", "key", "allowed-session", "allowed", time.Now().Unix()+60)) {
+		t.Fatal("owned run session rejected")
+	}
+}
+
+func TestRunSessionLeaseUsesGrantedSessionID(t *testing.T) {
+	a := testAgent(t, "/bin/sh")
+	a.opts.Grants = NewGrantVerifier("agent", "key")
+	a.opts.SessionID = "listener-run"
+	a.opts.AllowRunSessions = true
+	a.opts.AllowDevToken = false
+	released := make(chan string, 1)
+	a.opts.CheckAccess = func(_ context.Context, id, nonce string) error {
+		if id != "child-session" {
+			return errors.New("wrong session")
+		}
+		if strings.HasPrefix(nonce, "release:") {
+			released <- id
+		}
+		return nil
+	}
+	conn, _ := connect(t, a)
+	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: EncodeGrant("agent", "key", "child-session", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
+	if got := receive(t, conn); got.Type != "ready" {
+		t.Fatal("session not ready")
+	}
+	send(t, conn, protocol.Message{Type: "input", Data: []byte("exit 0\n")})
+	for {
+		if message := receive(t, conn); message.Type == "exit" {
+			break
+		}
+	}
+	select {
+	case id := <-released:
+		if id != "child-session" {
+			t.Fatal("wrong released session")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup did not release actual session")
+	}
+}

@@ -36,7 +36,7 @@ func (a *Agent) authorize(token string) bool {
 	// Grant-shaped tokens never fall back to the development per-run secret.
 	if a.opts.Grants != nil && strings.HasPrefix(token, "v1.") {
 		sessionID, err := a.opts.Grants.Verify(token, time.Now())
-		if err != nil || sessionID != a.opts.SessionID {
+		if err != nil || (!a.opts.AllowRunSessions && sessionID != a.opts.SessionID) {
 			return false
 		}
 		check, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -92,7 +92,8 @@ func (a *Agent) handle(conn net.Conn) {
 	// Each admitted grant nonce identifies this connection's lease. A busy
 	// attempt never consumes a grant or changes the active lease.
 	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
-		nonce := strings.Split(hello.Token, ".")[3]
+		parts := strings.Split(hello.Token, ".")
+		sessionID, nonce := parts[1], parts[3]
 		accessCtx, accessCancel := context.WithCancel(context.Background())
 		stopped := make(chan struct{})
 		go func() {
@@ -105,7 +106,7 @@ func (a *Agent) handle(conn net.Conn) {
 					return
 				case <-ticker.C:
 					check, cancel := context.WithTimeout(accessCtx, 3*time.Second)
-					err := a.opts.CheckAccess(check, a.opts.SessionID, "check:"+nonce)
+					err := a.opts.CheckAccess(check, sessionID, "check:"+nonce)
 					cancel()
 					if err != nil {
 						conn.Close()
@@ -119,7 +120,7 @@ func (a *Agent) handle(conn net.Conn) {
 			<-stopped
 			release, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
-			_ = a.opts.CheckAccess(release, a.opts.SessionID, "release:"+nonce)
+			_ = a.opts.CheckAccess(release, sessionID, "release:"+nonce)
 		}()
 	}
 	child, err := startProcess(a.opts, hello.Term, hello.Cols, hello.Rows)

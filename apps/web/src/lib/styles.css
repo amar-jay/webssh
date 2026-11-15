@@ -740,3 +740,128 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+.dashboard {
+  padding: 54px 0 70px;
+}
+.dashboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 36px;
+}
+.dashboard h1 {
+  font-size: 38px;
+  letter-spacing: -1.5px;
+  margin-bottom: 12px;
+}
+.dashboard-heading p:last-child {
+  margin-bottom: 0;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 32px 0 18px;
+}
+.section-heading h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.section-heading .pill {
+  margin-left: 10px;
+}
+.machine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  gap: 20px;
+}
+.workspace-card,
+.empty-state {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 24px;
+}
+.empty-state .command-block {
+  max-width: 400px;
+}
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.workspace-heading .machine-icon {
+  margin: 0;
+  flex-shrink: 0;
+}
+.workspace-heading h3 {
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
+}
+.workspace-run {
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.workspace-run > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+.workspace-run strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.session-list {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 24px;
+  background: var(--surface);
+}
+.session-row + .session-row {
+  border-top: 1px solid var(--line);
+}
+.session-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.session-row p {
+  margin: 5px 0 0;
+}
+.session-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+@media (max-width: 720px) {
+  .dashboard-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .dashboard h1 {
+    font-size: 32px;
+  }
+  .session-row {
+    flex-wrap: wrap;
+    padding: 20px;
+  }
+  .session-actions {
+    width: 100%;
+  }
+  .section-heading .small {
+    font-size: 10px;
+  }
+}

@@ -15,13 +15,15 @@ export interface SessionResult { state: SessionState; code?: number }
 export function attachRemoteSession(
   controller: Pick<SessionTerminal, 'terminal'>,
   connection: Connection,
-  options: { transport?: SessionTransport; signal?: AbortSignal; onState?: (state: SessionResult) => void; handshakeTimeoutMs?: number } = {}
+  options: { transport?: SessionTransport; signal?: AbortSignal; onState?: (state: SessionResult) => void; handshakeTimeoutMs?: number; connectionTimeoutMs?: number } = {}
 ): { dispose(): void; done: Promise<SessionResult> } {
   const terminal = controller.terminal;
   const lifetime = new AbortController();
   let client: Client | undefined;
   let stream: Stream | undefined;
   let result: SessionResult | undefined;
+  let complete!: (state:SessionResult) => void;
+  const completed = new Promise<SessionResult>(resolve => { complete = resolve; });
   let ready = false;
   let queued = 0;
   let writer = Promise.resolve();
@@ -29,11 +31,14 @@ export function attachRemoteSession(
   let resizeScheduled = false;
   const listeners: { dispose(): void }[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let connectionTimer: ReturnType<typeof setTimeout> | undefined;
   const notify = (state: SessionResult) => { try { options.onState?.(state); } catch { /* UI observers do not own transport cleanup. */ } };
   function finish(state: SessionResult) {
     if (result) return;
     result = state;
+    complete(state);
     clearTimeout(timer);
+    clearTimeout(connectionTimer);
     listeners.forEach(listener => listener.dispose());
     options.signal?.removeEventListener('abort', dispose);
     lifetime.abort();
@@ -70,10 +75,11 @@ export function attachRemoteSession(
   options.signal?.addEventListener('abort', dispose, { once: true });
   if (options.signal?.aborted) dispose();
 
-  const done = (async (): Promise<SessionResult> => {
+  const work = (async (): Promise<SessionResult> => {
     try {
       if (result) return result;
       notify({ state: 'connecting' });
+      connectionTimer = setTimeout(() => finish({state:'failed'}),options.connectionTimeoutMs ?? 25_000);
       const transport = options.transport ?? await loadTransport();
       if (result) return result;
       client = await transport.createClient({ address: connection.address, nodePrivateKey: connection.nodePrivateKey, derpMapURL: connection.derpMapURL });
@@ -92,7 +98,7 @@ export function attachRemoteSession(
           if (message.type === 'error') { finish({ state: 'failed' }); break; }
           if (!ready) {
             if (message.type !== 'ready') throw new Error('Expected agent readiness');
-            ready = true; clearTimeout(timer);
+            ready = true; clearTimeout(timer); clearTimeout(connectionTimer);
             listeners.push(terminal.onData(text => {
               if (text.length > 1024 * 1024) { finish({ state: 'failed' }); return; }
               input(new TextEncoder().encode(text));
@@ -123,5 +129,5 @@ export function attachRemoteSession(
     }
     return result ?? { state: 'failed' };
   })();
-  return { dispose, done };
+  return { dispose, done: Promise.race([work,completed]) };
 }

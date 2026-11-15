@@ -26,7 +26,7 @@
         return;
       }
       status = "done";
-      message = `Paired ${body.machineName ?? "machine"}. You can close this tab.`;
+      message = `Paired ${body.machineName ?? "machine"}. Start webssh serve . on your machine to open a workspace.`;
     } catch {
       status = "error";
       message = "Couldn’t reach WebSSH. Check your connection and try again.";
@@ -55,8 +55,8 @@
         <h2 id="pair-heading">You’re paired.</h2>
         <p role="status">{message}</p>
         <div class="inline-note">
-          Credentials are saved on your machine. Browser terminal access is
-          coming next.
+          Credentials are saved on your machine. Run webssh serve . there, then
+          open its browser URL.
         </div>
         <a class="button primary" href="/"
           >Back to overview <span aria-hidden="true">→</span></a

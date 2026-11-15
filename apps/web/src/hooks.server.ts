@@ -4,7 +4,14 @@ import { readSessionCookie, verifySession } from '#lib/auth/session.js';
 import { ownerStub } from '#lib/state/client.js';
 import { runtimeEnv } from '#lib/cloudflare/runtime.js';
 
-export const handle: Handle = async ({ event, resolve }) => {
+export const handle: Handle = async (input) => {
+  const response = await authenticate(input);
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', 'no-store');
+  return new Response(response.body, { status:response.status, statusText:response.statusText, headers });
+};
+
+const authenticate: Handle = async ({ event, resolve }) => {
   event.locals.user = null;
   if (!['GET', 'HEAD', 'OPTIONS'].includes(event.request.method) && event.request.headers.get('cookie')?.includes('webssh_session=') && event.request.headers.get('origin') !== event.url.origin) {
     return new Response('Forbidden', { status: 403 });

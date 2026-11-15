@@ -44,7 +44,8 @@
     }
 
     void initialize().catch((error: unknown) => {
-      console.error('Failed to initialize terminal', error);
+      container.textContent = 'Could not initialize the terminal. Reload the page to try again.';
+      console.error('Failed to initialize terminal');
     });
 
     return () => {

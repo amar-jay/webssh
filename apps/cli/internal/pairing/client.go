@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -152,7 +153,7 @@ func (c *Client) post(ctx context.Context, path string, body any, dest any) erro
 			Error string `json:"error"`
 		}
 		_ = json.Unmarshal(data, &errBody)
-		if errBody.Error != "" {
+		if regexp.MustCompile(`^[a-z_]{1,64}$`).MatchString(errBody.Error) {
 			return fmt.Errorf("%s", errBody.Error)
 		}
 		return fmt.Errorf("pairing request failed (%d)", res.StatusCode)
@@ -184,4 +185,34 @@ func (c *Client) Rotate(ctx context.Context, creds credentials.File, next, opera
 		OK bool `json:"ok"`
 	}
 	return c.post(ctx, "/api/agent/session", map[string]string{"ownerId": creds.OwnerID, "agentId": creds.AgentID, "agentToken": creds.AgentToken, "operation": "renew", "replacementToken": next, "operationId": operationID}, &out)
+}
+
+// RunUpdate publishes only the listener descriptor, never the agent's grant key.
+type RunUpdate struct {
+	Operation      string `json:"operation"`
+	RunID          string `json:"runId"`
+	MachineName    string `json:"machineName,omitempty"`
+	WorkspaceLabel string `json:"workspaceLabel,omitempty"`
+	Address        string `json:"address,omitempty"`
+	Port           int    `json:"port,omitempty"`
+	DERPMapURL     string `json:"derpMapURL,omitempty"`
+}
+
+func (c *Client) UpdateRun(ctx context.Context, creds credentials.File, update RunUpdate) error {
+	var out struct {
+		SessionID string `json:"sessionId"`
+	}
+	return c.post(ctx, "/api/agent/run", struct {
+		RunUpdate
+		OwnerID    string `json:"ownerId"`
+		AgentID    string `json:"agentId"`
+		AgentToken string `json:"agentToken"`
+	}{update, creds.OwnerID, creds.AgentID, creds.AgentToken}, &out)
+}
+
+func (c *Client) RunAccess(ctx context.Context, creds credentials.File, runID, sessionID, nonce string) error {
+	var out struct {
+		SessionID string `json:"sessionId"`
+	}
+	return c.post(ctx, "/api/agent/session", map[string]string{"ownerId": creds.OwnerID, "agentId": creds.AgentID, "agentToken": creds.AgentToken, "runId": runID, "sessionId": sessionID, "nonce": nonce}, &out)
 }

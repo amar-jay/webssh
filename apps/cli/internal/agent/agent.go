@@ -20,17 +20,18 @@ import (
 )
 
 type Options struct {
-	Workspace      string
-	Shell          string
-	Token          string // Development per-run capability; empty when grants-only. Never log it.
-	Grants         *GrantVerifier
-	SessionID      string
-	CheckAccess    func(context.Context, string, string) error
-	AllowDevToken  bool // Local/dev attach using Token; production paired agents leave this false.
-	Port           int  // Zero selects the protocol's default virtual port.
-	MaxConnections int  // Includes connections still authenticating; defaults to 8.
-	DERPMapURL     string
-	Region         *tailcfg.DERPRegion // Optional explicit relay, useful for local integration.
+	Workspace        string
+	Shell            string
+	Token            string // Development per-run capability; empty when grants-only. Never log it.
+	Grants           *GrantVerifier
+	SessionID        string
+	AllowRunSessions bool // Additional sessions are authorized against this run by CheckAccess.
+	CheckAccess      func(context.Context, string, string) error
+	AllowDevToken    bool // Local/dev attach using Token; production paired agents leave this false.
+	Port             int  // Zero selects the protocol's default virtual port.
+	MaxConnections   int  // Includes connections still authenticating; defaults to 8.
+	DERPMapURL       string
+	Region           *tailcfg.DERPRegion // Optional explicit relay, useful for local integration.
 }
 
 type Info struct {

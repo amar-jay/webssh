@@ -39,8 +39,9 @@
           <Accordion.Content
             ><p>
               Pairing saves your machine’s credentials. You can start the agent
-              with <code>webssh serve .</code>. Opening paired terminals in the
-              browser is coming next.
+              with <code>webssh serve .</code>. Open the URL printed by serve
+              and sign in with the same GitHub account. Use the overview to open
+              or end sessions.
             </p></Accordion.Content
           >
         </Accordion.Item>

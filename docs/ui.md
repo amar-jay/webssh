@@ -10,6 +10,6 @@ Current integrations:
 
 Shared components live in `apps/web/src/lib/components/`: `AppShell.svelte`, `SetupHelp.svelte`, and `CommandBlock.svelte`. The global palette, spacing, responsive layout, focus styles, and reduced-motion rules live in `apps/web/src/lib/styles.css`. The terminal keeps its existing xterm theme and full-screen local development behavior.
 
-The overview, pairing entry, machine approval, success state, local connection form, and production terminal placeholder share this design. Production browser connections to paired agents remain a later milestone; the interface does not imply that a paired machine is already openable.
+The signed-in overview lists paired machines, running workspaces, and sessions, with native form actions for opening and ending sessions. Pairing entry, approval, success, and the local connection form share this design. The `/s/<session_id>` route stays terminal-only and resolves credentials through an authenticated no-store request; it does not include the app header or dashboard.
 
 Run `pnpm --filter @webssh/web check`, `pnpm --filter @webssh/web test`, and `pnpm --filter @webssh/web build` to validate changes.

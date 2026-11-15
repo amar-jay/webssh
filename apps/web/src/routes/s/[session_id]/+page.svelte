@@ -1,5 +1,5 @@
 <script lang="ts">
-  import AppShell from "#lib/components/AppShell.svelte";
+  import { attachPairedSession } from "#lib/session/paired-session.js";
   const dev = import.meta.env.DEV;
   import SessionTerminal from "#lib/components/SessionTerminal.svelte";
   import { takeLocalSession } from "#lib/session/local-connections.js";
@@ -14,12 +14,8 @@
   function attach(controller: Controller) {
     const local = dev ? takeLocalSession(params.session_id) : undefined;
     if (!local) {
-      controller.terminal.write(
-        dev
-          ? "No local connection available. Open /dev/connect to connect or start a mock session.\r\n"
-          : "Session connection is not available.\r\n",
-      );
-      return;
+      const session = attachPairedSession(controller, params.session_id);
+      return () => session.dispose();
     }
     if (local.mode === "mock")
       return attachMockSession(controller.terminal, params.session_id);
@@ -42,27 +38,10 @@
 </script>
 
 <svelte:head><title>{params.session_id} · WebSSH</title></svelte:head>
-{#if !dev}
-  <AppShell>
-    <main class="dev-page">
-      <p class="eyebrow">WORKSPACE / TERMINAL</p>
-      <div class="machine-icon" aria-hidden="true">›_</div>
-      <h1>Your terminal is up next.</h1>
-      <p class="muted">
-        Browser connections to paired machines aren’t available yet. Pairing
-        saves your machine’s credentials, so it’s ready for the next step.
-      </p>
-      <a class="button primary" href="/"
-        >Back to overview <span aria-hidden="true">→</span></a
-      >
-    </main>
-  </AppShell>
-{:else}
-  {#key params.session_id}
-    <SessionTerminal
-      sessionId={params.session_id}
-      onReady={attach}
-      options={{ screenReader: dev }}
-    />
-  {/key}
-{/if}
+{#key params.session_id}
+  <SessionTerminal
+    sessionId={params.session_id}
+    onReady={attach}
+    options={{ screenReader: dev }}
+  />
+{/key}
