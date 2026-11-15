@@ -4,7 +4,7 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>Pair a machine · WebSSH</title></svelte:head>
+<svelte:head><title>Pair a machine | WebSSH</title></svelte:head>
 <AppShell signedIn={!!data.user} width="narrow">
   <div class="w-full max-w-[460px]">
     <h1 class="mb-6 text-center text-2xl tracking-tight">Pair a machine</h1>

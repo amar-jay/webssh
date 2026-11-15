@@ -4,7 +4,7 @@
   let { data, form } = $props();
 </script>
 
-<svelte:head><title>Machines · WebSSH</title></svelte:head>
+<svelte:head><title>Machines | WebSSH</title></svelte:head>
 <AppShell signedIn={true} width="narrow">
   <MachineTable
     agents={data.agents}

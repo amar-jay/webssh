@@ -4,7 +4,7 @@
   let { data, form } = $props();
 </script>
 
-<svelte:head><title>Approve CLI access · WebSSH</title></svelte:head>
+<svelte:head><title>Approve CLI access | WebSSH</title></svelte:head>
 <AppShell signedIn={!!data.user} width="narrow">
   <section class="w-full max-w-[460px] text-center">
     {#if form?.approved}

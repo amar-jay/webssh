@@ -257,14 +257,14 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 				}{protocol.Version, browserSessionID, browserURL})
 			}
 			if !devToken {
-				_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\n%s\n", cfg.MachineName, info.Workspace, browserURL, persistenceMessage(opts.Backend))
+				_, err := fmt.Fprintf(os.Stdout, "WebSSH | %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\n%s\n", cfg.MachineName, info.Workspace, browserURL, persistenceMessage(opts.Backend))
 				return err
 			}
 		}
 		if cmd.Bool("json") {
 			return json.NewEncoder(os.Stdout).Encode(info)
 		}
-		_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\nDevelopment token\n%s\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token, persistenceMessage(opts.Backend))
+		_, err := fmt.Fprintf(os.Stdout, "WebSSH | %s\nWorkspace: %s\n\nAddress: %s\nPort: %d\nToken: %s\n\nDevelopment token\n%s\n", cfg.MachineName, info.Workspace, info.Address, info.Port, info.Token, persistenceMessage(opts.Backend))
 		return err
 	})
 	cancel()

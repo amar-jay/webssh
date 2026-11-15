@@ -43,7 +43,7 @@
   }
 </script>
 
-<svelte:head><title>Local connection · WebSSH</title></svelte:head>
+<svelte:head><title>Local connection | WebSSH</title></svelte:head>
 <AppShell
   ><main
     class="mx-auto my-9 max-w-[660px] min-[721px]:mt-[60px] min-[721px]:mb-20"

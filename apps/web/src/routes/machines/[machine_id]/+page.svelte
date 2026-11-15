@@ -13,7 +13,7 @@
   let refreshFailed = $state(false);
 </script>
 
-<svelte:head><title>{data.agent.machineName} · WebSSH</title></svelte:head>
+<svelte:head><title>{data.agent.machineName} | WebSSH</title></svelte:head>
 <AppShell signedIn={true} width="narrow">
   <a
     class="mb-5 inline-flex items-center gap-2 self-start text-sm text-secondary hover:text-ink"

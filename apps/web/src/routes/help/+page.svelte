@@ -5,7 +5,7 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>Help · WebSSH</title></svelte:head>
+<svelte:head><title>Help | WebSSH</title></svelte:head>
 <AppShell signedIn={!!data.user} width="narrow">
   <HelpArticle />
 </AppShell>

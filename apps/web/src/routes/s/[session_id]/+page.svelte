@@ -54,7 +54,7 @@
   }
 </script>
 
-<svelte:head><title>{params.session_id} · WebSSH</title></svelte:head>
+<svelte:head><title>{params.session_id} | WebSSH</title></svelte:head>
 {#key params.session_id}
   <SessionTerminal
     sessionId={params.session_id}
