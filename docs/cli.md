@@ -48,3 +48,22 @@ For availability, startup cleanup, connection deadlines, and the session lifecyc
 For owned tmux cleanup while serve is stopped, use `webssh sessions <path>`, `webssh sessions --terminate <id> <path>`, or `webssh sessions --terminate-all <path>`. See [access and lifecycle controls](access-lifecycle.md).
 
 Versioned installation, updates, checksums and rollback are documented in [deployment and distribution](deployment.md).
+
+## Native terminal client
+
+Use a session URL printed by `serve`, or its opaque session ID:
+
+```sh
+webssh attach https://ssh.amarjay.com/s/SESSION_ID
+webssh attach SESSION_ID
+# Alias:
+webssh ssh SESSION_ID
+```
+
+The source machine must keep `webssh serve` running. On the client machine, `attach` prints a short-lived approval link and matching code. Sign in to the owning GitHub account, verify the code, and approve CLI access. The approval is single-use, expires after five minutes, and delivers a fresh session grant directly to the CLI. No grants, cookies, or agent credentials need copying or saving locally. Signing out of the approving browser or revoking the machine cuts the native connection through the existing lease checks. This first version requires a fresh browser approval for each attachment; it does not provide a persistent CLI login.
+
+The native client uses the same protocol and remote PTY as the browser, with raw local input, Unicode, Ctrl+C, window resize, heartbeat deadlines, and remote exit status. It requires an interactive Linux/macOS terminal. It can use Tailcat's native direct path where available; this is not an OpenSSH server or an `ssh user@host` endpoint.
+
+Press **Ctrl-] then .** to detach; press **Ctrl-] twice** to send a literal Ctrl-]. Tmux work stays running after detach, terminal closure, or network loss; an explicitly ephemeral session ends on disconnect. Ending the remote shell or using the existing session termination controls terminates it. Another active controller is rejected without takeover. Network loss returns to the local shell, restores terminal settings, and never reconnects or replays uncertain input automatically. Native escape sequences are rendered by your local terminal emulator, whose clipboard and link policies apply.
+
+Deploy state migration 6 before the updated web app, then distribute the updated CLI. Earlier releases do not contain `attach`.

@@ -237,3 +237,27 @@ test('shared pairing hub storage remains bounded across new IPs and attempts',as
   assert.equal((await hub.sqlForTest('SELECT COUNT(*) n FROM pairing_attempts'))[0].n,512);
  }finally{await mf.dispose()}
 });
+
+test('native CLI approvals are expiring, secret-protected and consumed once under concurrent polls', async () => {
+ const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
+ try {
+  const ns=await mf.getDurableObjectNamespace('STATE'),hub=ns.get(ns.idFromName('pairing'));
+  const attempt=await hub.startCLIAttach('session_123456789012','127.0.0.1');
+  assert.equal((await hub.previewCLIAttach(attempt.code)).sessionId,'session_123456789012');
+  assert.equal((await hub.pollCLIAttach(attempt.code,attempt.cliSecret)).status,'pending');
+  await assert.rejects(hub.pollCLIAttach(attempt.code,'wrong-secret'));
+  await hub.approveCLIAttach(attempt.code,'owner','browser');
+  await assert.rejects(hub.approveCLIAttach(attempt.code,'foreign','foreign-browser'));
+  const results=await Promise.all([hub.pollCLIAttach(attempt.code,attempt.cliSecret),hub.pollCLIAttach(attempt.code,attempt.cliSecret)]);
+  const approval=results.find(result=>result.status==='approved');
+  assert.equal(approval.sessionId,'session_123456789012');assert.equal(approval.ownerId,'owner');assert.equal(approval.browserId,'browser');
+  assert.equal(results.filter(result=>result.status==='approved').length,1);
+  assert.equal((await hub.pollCLIAttach(attempt.code,attempt.cliSecret)).status,'expired');
+  const expired=await hub.startCLIAttach('session_123456789012','127.0.0.1');
+  await hub.sqlForTest('UPDATE cli_attach_attempts SET expires_at=0 WHERE code=?',[expired.code]);
+  await assert.rejects(hub.approveCLIAttach(expired.code,'owner','browser'));
+  assert.equal((await hub.pollCLIAttach(expired.code,expired.cliSecret)).status,'expired');
+  assert.equal((await hub.testCall('alarm',[])).ok,true);
+  assert.equal((await hub.sqlForTest('SELECT * FROM cli_attach_attempts WHERE code=?',[expired.code])).length,0);
+ } finally {await mf.dispose();}
+});

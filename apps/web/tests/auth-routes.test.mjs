@@ -166,3 +166,27 @@ test('logout revokes the signed-in browser session and clears its cookie', async
  assert.match(response.headers.get('set-cookie'), /__Host-webssh_session=;.*Max-Age=0/);
  assert.equal(revoked, true);
 });
+
+test('native CLI approval checks ownership and binds access to the authenticated browser', async () => {
+ const approval=await moduleAt('src/routes/attach/+page.server.ts');let approved=0,foreign=false;
+ const ns={idFromName:name=>name,get:name=>name==='pairing'?{
+  previewCLIAttach:async()=>({sessionId:'session_123456789012'}),
+  approveCLIAttach:async(code,owner,browser)=>{assert.equal(code,'ABCDEFGH');assert.equal(owner,'42');assert.equal(browser,'browser');approved++;},
+ }:{getTerminalSession:async(owner,id)=>{assert.equal(name,'owner:42');assert.equal(owner,'42');assert.equal(id,'session_123456789012');return foreign?null:{status:'connecting',workspaceLabel:'project'};}}};
+ const event=()=>({locals:{user:{ownerId:'42',sessionId:'browser'}},platform:{env:{WEBSSH_STATE:ns}},request:new Request('https://webssh.example/attach',{method:'POST',body:new URLSearchParams({code:'ABCDEFGH',ownerId:'forged'})})});
+ const loaded=await approval.load({...event(),url:new URL('https://webssh.example/attach?code=ABCDEFGH'),setHeaders:()=>{}});
+ assert.equal(loaded.workspace,'project');assert.equal(approved,0);
+ foreign=true;assert.equal((await approval.actions.default(event())).status,409);assert.equal(approved,0);
+ foreign=false;assert.equal((await approval.actions.default(event())).approved,true);assert.equal(approved,1);
+ await assert.rejects(()=>approval.actions.default({...event(),locals:{user:null}}),error=>error.status===303);
+});
+
+test('CLI polling mints a fresh descriptor using only the approved identity and hides backend errors', async () => {
+ const poll=await moduleAt('src/routes/api/cli/attach/poll/+server.ts');let fail=false;
+ const ns={idFromName:name=>name,get:name=>name==='pairing'?{
+  limitRequest:async()=>{},pollCLIAttach:async()=>({status:'approved',ownerId:'42',browserId:'browser',sessionId:'session_123456789012'}),
+ }:{resolveSession:async(owner,id,browser)=>{assert.equal(name,'owner:42');assert.equal(owner,'42');assert.equal(id,'session_123456789012');assert.equal(browser,'browser');if(fail)throw Error('private-token');return {grant:'v1.test',terminalSessionId:id};}}};
+ const event=()=>({platform:{env:{WEBSSH_STATE:ns}},request:new Request('https://webssh.example/api/cli/attach/poll',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code:'ABCDEFGH',cliSecret:'S'.repeat(32),ownerId:'forged'})})});
+ const response=await poll.POST(event());assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');assert.equal((await response.json()).status,'approved');
+ fail=true;const failed=await poll.POST(event());assert.equal(failed.status,409);assert.doesNotMatch(await failed.text(),/private-token/);
+});

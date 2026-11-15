@@ -78,3 +78,39 @@ func TestNewClientRejectsPath(t *testing.T) {
 		t.Fatal("expected origin path error")
 	}
 }
+
+func TestNativeAttachApproval(t *testing.T) {
+	const id = "session_123456789012"
+	var origin string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Error("approval must use POST")
+		}
+		switch r.URL.Path {
+		case "/api/cli/attach/start":
+			json.NewEncoder(w).Encode(map[string]any{"code": "ABCDEFGH", "cliSecret": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS", "url": origin + "/attach?code=ABCDEFGH"})
+		case "/api/cli/attach/poll":
+			json.NewEncoder(w).Encode(map[string]any{"status": "approved", "terminalSessionId": id, "address": "tcTest", "port": 8022, "backend": "tmux", "grant": "v1.private"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	origin = srv.URL
+	client, err := NewClient(origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := client.StartAttach(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := client.WaitAttach(context.Background(), started, id)
+	if err != nil || descriptor.SessionID != id || descriptor.Grant != "v1.private" {
+		t.Fatal("approval descriptor not delivered")
+	}
+	_, err = client.WaitAttach(context.Background(), started, "different_session_12345")
+	if err == nil {
+		t.Fatal("accepted descriptor for a different session")
+	}
+}

@@ -53,7 +53,12 @@ export type GrantMintResult = {
 export type PublicError = { error: string };
 
 /** RPC surface shared without importing Worker runtime declarations into DOM code. */
+export type CLIAttachApproval = { sessionId: string; ownerId: string; browserId: string };
 export interface StateAPI {
+ startCLIAttach(sessionId:string,ip:string):Promise<{code:string;cliSecret:string;expiresAt:number}>;
+ previewCLIAttach(code:string):Promise<{sessionId:string}>;
+ approveCLIAttach(code:string,ownerId:string,browserId:string):Promise<void>;
+ pollCLIAttach(code:string,secret:string):Promise<{status:'pending'|'expired'}|({status:'approved'} & CLIAttachApproval)>;
  listAgents(ownerId:string):Promise<AgentRecord[]>;
  listRuns(ownerId:string):Promise<RunRecord[]>;
  listTerminalSessions(ownerId:string):Promise<TerminalSessionRecord[]>;

@@ -233,3 +233,67 @@ func (c *Client) RunAccess(ctx context.Context, creds credentials.File, runID, s
 	}
 	return c.post(ctx, "/api/agent/session", map[string]string{"ownerId": creds.OwnerID, "agentId": creds.AgentID, "agentToken": creds.AgentToken, "runId": runID, "sessionId": sessionID, "nonce": nonce, "generation": incarnation}, &out)
 }
+
+// Attach approvals authorize one native connection; they are not agent credentials.
+type AttachStart struct {
+	Code      string `json:"code"`
+	CLISecret string `json:"cliSecret"`
+	ExpiresAt int64  `json:"expiresAt"`
+	URL       string `json:"url"`
+}
+type AttachDescriptor struct {
+	Status     string `json:"status"`
+	SessionID  string `json:"terminalSessionId"`
+	Address    string `json:"address"`
+	Port       int    `json:"port"`
+	Grant      string `json:"grant"`
+	Backend    string `json:"backend"`
+	DERPMapURL string `json:"derpMapURL"`
+}
+
+func (c *Client) StartAttach(ctx context.Context, sessionID string) (AttachStart, error) {
+	var out AttachStart
+	if err := c.post(ctx, "/api/cli/attach/start", map[string]string{"sessionId": sessionID}, &out); err != nil {
+		return out, errors.New("could not request CLI access; check the service and try again")
+	}
+	expected := c.Origin + "/attach?code=" + out.Code
+	if !regexp.MustCompile(`^[A-Z0-9]{8}$`).MatchString(out.Code) || !regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`).MatchString(out.CLISecret) || out.URL != expected {
+		return AttachStart{}, errors.New("invalid CLI approval response")
+	}
+	return out, nil
+}
+func (c *Client) WaitAttach(ctx context.Context, attempt AttachStart, sessionID string) (AttachDescriptor, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		var result AttachDescriptor
+		if err := c.post(ctx, "/api/cli/attach/poll", map[string]string{"code": attempt.Code, "cliSecret": attempt.CLISecret}, &result); err != nil {
+			if err.Error() == "session_busy" {
+				return result, errors.New("another controller is attached; detach it before retrying")
+			}
+			return result, errors.New("CLI approval failed; check session availability and request a fresh link")
+		}
+		if result.Status == "approved" {
+			if result.SessionID != sessionID || !strings.HasPrefix(result.Address, "tc") || !strings.HasPrefix(result.Grant, "v1.") || result.Port < 1 || result.Port > 65535 || (result.Backend != "tmux" && result.Backend != "ephemeral") {
+				return AttachDescriptor{}, errors.New("invalid session descriptor")
+			}
+			if result.DERPMapURL != "" {
+				u, e := url.Parse(result.DERPMapURL)
+				if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+					return AttachDescriptor{}, errors.New("invalid relay map")
+				}
+			}
+			return result, nil
+		}
+		if result.Status != "pending" {
+			return result, errors.New("CLI approval expired; run attach again")
+		}
+		select {
+		case <-ctx.Done():
+			return result, errors.New("CLI approval cancelled or expired")
+		case <-ticker.C:
+		}
+	}
+}

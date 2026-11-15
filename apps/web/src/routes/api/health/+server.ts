@@ -22,7 +22,7 @@ export const GET: RequestHandler = async ({ platform }) => {
         ),
       ),
     ]);
-    if (health.schema !== 5) throw new Error("unavailable");
+    if (health.schema !== 6) throw new Error("unavailable");
     return noStore({
       app: "ok",
       state: "ok",

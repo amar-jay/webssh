@@ -109,6 +109,11 @@ CREATE INDEX terminal_sessions_run ON terminal_sessions(run_id);` }
 ALTER TABLE agent_runs ADD COLUMN generation TEXT;
 ALTER TABLE grant_nonces ADD COLUMN run_generation TEXT;
 ALTER TABLE terminal_sessions ADD COLUMN termination_requested INTEGER NOT NULL DEFAULT 0;` }
+, { id: 6, sql: `CREATE TABLE cli_attach_attempts (
+ code TEXT PRIMARY KEY NOT NULL, secret_hash TEXT NOT NULL,
+ terminal_session_id TEXT NOT NULL, status TEXT NOT NULL,
+ owner_id TEXT, browser_session_id TEXT, expires_at INTEGER NOT NULL
+);` }
 ];
 
 export function applyMigrations(

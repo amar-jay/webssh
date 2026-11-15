@@ -18,7 +18,7 @@ export class MigrationTest extends DurableObject {
  upgrade(){applyMigrations(this.ctx.storage.sql,fn=>this.ctx.storage.transactionSync(fn));}
  inspect(){const sql=this.ctx.storage.sql;return {owner:[...sql.exec('SELECT * FROM owners')],session:[...sql.exec('SELECT * FROM terminal_sessions')],versions:[...sql.exec('SELECT id FROM schema_migrations ORDER BY id')]};}
  failMigration(){
- migrations.push({id:6,sql:'CREATE TABLE partial_change (id INTEGER); INVALID SQL;'});
+ migrations.push({id:7,sql:'CREATE TABLE partial_change (id INTEGER); INVALID SQL;'});
  try{applyMigrations(this.ctx.storage.sql,fn=>this.ctx.storage.transactionSync(fn));}finally{migrations.pop();}
  }
  partialExists(){return [...this.ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE name='partial_change'")].length;}
@@ -54,7 +54,7 @@ test("real SQLite upgrade preserves existing ownership/ended state; repeat and f
     assert.equal(state.session[0].termination_requested, 0);
     assert.deepEqual(
       state.versions.map((v) => v.id),
-      [1, 2, 3, 4, 5],
+      [1, 2, 3, 4, 5, 6],
     );
     await assert.rejects(stub.failMigration());
     assert.equal(await stub.partialExists(), 0);

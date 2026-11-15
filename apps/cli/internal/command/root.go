@@ -20,11 +20,12 @@ func New() *cli.Command {
 	return &cli.Command{
 		Name:    "webssh",
 		Version: Version + " (" + Commit + "; protocol 2, bridge 1)",
-		Usage:   "browser terminals for remote machines",
+		Usage:   "browser and native terminals for remote machines",
 		Commands: []*cli.Command{
 			configCommand(),
 			pairCommand(),
 			serveCommand(),
+			attachCommand(),
 			sessionsCommand(),
 		},
 		// Keep process lifetime in main/tests; urfave help still prints and returns.

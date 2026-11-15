@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +10,13 @@ import (
 
 func main() {
 	if err := command.Run(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, "webssh:", err)
+		if err.Error() != "" {
+			fmt.Fprintln(os.Stderr, "webssh:", err)
+		}
+		var exit interface{ ExitCode() int }
+		if errors.As(err, &exit) {
+			os.Exit(exit.ExitCode())
+		}
 		os.Exit(1)
 	}
 }
