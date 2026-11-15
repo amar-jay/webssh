@@ -4,11 +4,14 @@ package command
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/amar-jay/webssh/apps/cli/internal/config"
+	"github.com/amar-jay/webssh/apps/cli/internal/logging"
 	configprompt "github.com/amar-jay/webssh/apps/cli/internal/prompt/config"
 )
 
@@ -16,11 +19,23 @@ import (
 var Version = "dev"
 var Commit = "unknown"
 
-func New() *cli.Command {
+func New() *cli.Command { return newCommand(nil) }
+
+func newCommand(configured func(*slog.Logger)) *cli.Command {
 	return &cli.Command{
 		Name:    "webssh",
 		Version: Version + " (" + Commit + "; protocol 2, bridge 1)",
 		Usage:   "browser and native terminals for remote machines",
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			logger, err := logging.FromEnvironment(cmd.ErrWriter)
+			if err != nil {
+				return ctx, err
+			}
+			if configured != nil {
+				configured(logger)
+			}
+			return logging.WithLogger(ctx, logger), nil
+		},
 		Commands: []*cli.Command{
 			configCommand(),
 			pairCommand(),
@@ -34,7 +49,21 @@ func New() *cli.Command {
 }
 
 func Run(args []string) error {
-	return New().Run(context.Background(), args)
+	return run(args, os.Stderr)
+}
+
+func run(args []string, stderr io.Writer) error {
+	logger, setupErr := logging.FromEnvironment(stderr)
+	if setupErr != nil {
+		logger, _ = logging.New(stderr, "auto", "info")
+	}
+	cmd := newCommand(func(configured *slog.Logger) { logger = configured })
+	cmd.ErrWriter = stderr
+	err := cmd.Run(context.Background(), args)
+	if err != nil && err.Error() != "" {
+		logger.Error("Command failed", "component", "cli", "error", err)
+	}
+	return err
 }
 
 func configCommand() *cli.Command {

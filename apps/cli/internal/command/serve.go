@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -19,6 +19,7 @@ import (
 	"github.com/amar-jay/webssh/apps/cli/internal/agent"
 	"github.com/amar-jay/webssh/apps/cli/internal/config"
 	"github.com/amar-jay/webssh/apps/cli/internal/credentials"
+	"github.com/amar-jay/webssh/apps/cli/internal/logging"
 	"github.com/amar-jay/webssh/apps/cli/internal/pairing"
 	"github.com/amar-jay/webssh/packages/protocol"
 )
@@ -198,8 +199,8 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 		return nil
 	}
-	lifecycle := log.New(os.Stderr, "", 0)
-	opts.Event = func(event agent.Event) { lifecycle.Printf(`{"component":"agent","event":%q}`, event) }
+	lifecycle := logging.From(ctx).With("component", "agent")
+	opts.Event = func(event agent.Event) { logAgentEvent(ctx, lifecycle, event) }
 	server, err := agent.New(opts)
 	if err != nil {
 		return err
@@ -303,4 +304,39 @@ func workspacePath(args []string) (string, error) {
 		return "", fmt.Errorf("workspace path %q is not a directory", path)
 	}
 	return path, nil
+}
+
+func logAgentEvent(ctx context.Context, logger *slog.Logger, event agent.Event) {
+	level := slog.LevelInfo
+	var message string
+	switch event {
+	case agent.RelayStarting:
+		message = "Connecting to relay"
+	case agent.RelayReady:
+		message = "Relay ready"
+	case agent.RelayFailed:
+		level = slog.LevelError
+		message = "Relay connection failed"
+	case agent.AgentStopped:
+		message = "Agent stopped"
+	case agent.ConnectionOpened:
+		level = slog.LevelDebug
+		message = "Connection opened"
+	case agent.ConnectionClosed:
+		level = slog.LevelDebug
+		message = "Connection closed"
+	case agent.ConnectionLimit:
+		level = slog.LevelWarn
+		message = "Connection limit reached"
+	case agent.SessionAttached:
+		message = "Session attached"
+	case agent.AccessDenied:
+		level = slog.LevelWarn
+		message = "Access denied"
+	case agent.ProcessEnded:
+		message = "Remote process ended"
+	default:
+		return
+	}
+	logger.Log(ctx, level, message, "event", string(event))
 }

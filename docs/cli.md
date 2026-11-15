@@ -67,3 +67,16 @@ The native client uses the same protocol and remote PTY as the browser, with raw
 Press **Ctrl-] then .** to detach; press **Ctrl-] twice** to send a literal Ctrl-]. Tmux work stays running after detach, terminal closure, or network loss; an explicitly ephemeral session ends on disconnect. Ending the remote shell or using the existing session termination controls terminates it. Another active controller is rejected without takeover. Network loss returns to the local shell, restores terminal settings, and never reconnects or replays uncertain input automatically. Native escape sequences are rendered by your local terminal emulator, whose clipboard and link policies apply.
 
 Deploy state migration 6 before the updated web app, then distribute the updated CLI. Earlier releases do not contain `attach`.
+
+## Diagnostics
+
+CLI diagnostics use Go `log/slog` on stderr. The optional `LOG_FORMAT=auto|text|json` environment variable selects the format (default `auto`: text for an interactive stderr terminal, JSON when redirected). `LOG_LEVEL=debug|info|warn|error` selects the minimum level (default `info`). Neither setting is a CLI flag:
+
+```sh
+LOG_LEVEL=debug webssh serve .
+LOG_FORMAT=json webssh serve --json . 2>agent.log
+```
+
+Prompts, pairing/approval links, session listings, and the `serve --json` result remain command output, separate from diagnostics. Native terminal input/output stays untouched; connection diagnostics are emitted outside raw-mode attachment. A remote process's exit status remains its exit status, with no extra error record for an otherwise silent remote exit.
+
+Log records include timestamps, severity, application/component and fixed lifecycle event names. Connection open/close events use `debug`, access denials and connection limits use `warn`, and relay failure uses `error`. Common credential fields, private keys, grants, connection addresses, identifiers, URLs and absolute paths are redacted by the handler. Do not add command contents, terminal output, arbitrary configuration structs or raw upstream transport diagnostics to log records; Tailcat debug output remains disabled at every CLI log level. Logs are not written to disk unless you redirect stderr.

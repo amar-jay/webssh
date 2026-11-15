@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/amar-jay/webssh/apps/cli/internal/logging"
 	"github.com/amar-jay/webssh/apps/cli/internal/pairing"
 	"github.com/amar-jay/webssh/apps/cli/internal/terminalclient"
 	"github.com/tailscale/tailcat"
@@ -28,7 +29,8 @@ func checkInteractiveTerminal() error {
 func attachTerminal(parent context.Context, descriptor pairing.AttachDescriptor) error {
 	ctx, cancel := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
-	fmt.Fprintln(os.Stderr, "Connecting…  Ctrl-] then . detaches.")
+	logging.From(ctx).Info("Connecting to agent", "component", "client", "event", "attach_connecting")
+	fmt.Fprintln(os.Stderr, "Detach: Ctrl-] then .")
 	client := &tailcat.Client{Server: tailcat.Addr(descriptor.Address), DERPMapURL: descriptor.DERPMapURL, Logf: logger.Discard}
 	defer client.Close()
 	dialCtx, done := context.WithTimeout(ctx, 25*time.Second)
@@ -47,7 +49,7 @@ func attachTerminal(parent context.Context, descriptor pairing.AttachDescriptor)
 		return err
 	}
 	if result.Detached {
-		fmt.Fprint(os.Stderr, "\r\nDetached.\r\n")
+		logging.From(ctx).Info("Detached", "component", "client", "event", "session_detached")
 	}
 	if result.ExitCode != 0 {
 		return cli.Exit("", result.ExitCode)
