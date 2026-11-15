@@ -19,7 +19,29 @@ import (
 	"tailscale.com/types/logger"
 )
 
+type Event string
+
+const (
+	RelayStarting    Event = "relay_starting"
+	RelayReady       Event = "relay_ready"
+	RelayFailed      Event = "relay_failed"
+	AgentStopped     Event = "agent_stopped"
+	ConnectionOpened Event = "connection_opened"
+	ConnectionClosed Event = "connection_closed"
+	ConnectionLimit  Event = "connection_limit"
+	SessionAttached  Event = "session_attached"
+	AccessDenied     Event = "access_denied"
+	ProcessEnded     Event = "process_ended"
+)
+
+func (a *Agent) event(event Event) {
+	if a.opts.Event != nil {
+		a.opts.Event(event)
+	}
+}
+
 type Options struct {
+	Event             func(Event)   // Fixed lifecycle names only, no identifiers or payloads.
 	ClientIdleTimeout time.Duration // Controller liveness deadline; default 20 seconds.
 	Backend           string        // tmux (durable) or explicitly ephemeral.
 	Manager           *SessionManager
@@ -136,6 +158,8 @@ func New(opts Options) (*Agent, error) {
 // Run creates an ephemeral encrypted listener. ready receives credentials once
 // listening; the caller decides how to deliver them to an authorized browser.
 func (a *Agent) Run(ctx context.Context, ready func(Info) error) error {
+	a.event(RelayStarting)
+	defer a.event(AgentStopped)
 	server := &tailcat.Server{Logf: logger.Discard, DERPMapURL: a.opts.DERPMapURL, Region: a.opts.Region}
 	defer server.Close()
 	startup, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -145,9 +169,11 @@ func (a *Agent) Run(ctx context.Context, ready func(Info) error) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		return fmt.Errorf("start Tailcat listener: %w", err)
+		a.event(RelayFailed)
+		return errors.New("relay_start_failed: check HTTPS connectivity and relay availability, then retry")
 	}
 	defer listener.Close()
+	a.event(RelayReady)
 	if ready != nil {
 		if err := ready(Info{SessionID: a.opts.SessionID, Version: protocol.Version, Address: string(server.TailcatAddr()), Port: a.opts.Port, Token: a.opts.Token, Workspace: a.opts.Workspace}); err != nil {
 			return err
@@ -186,9 +212,12 @@ func (a *Agent) Serve(ctx context.Context, listener net.Listener) error {
 				defer conn.Close()
 				stop := context.AfterFunc(ctx, func() { conn.Close() })
 				defer stop()
+				a.event(ConnectionOpened)
+				defer a.event(ConnectionClosed)
 				a.handle(ctx, conn)
 			}()
 		default:
+			a.event(ConnectionLimit)
 			conn.Close()
 		}
 	}

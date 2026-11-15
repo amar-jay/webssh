@@ -12,10 +12,15 @@ import (
 	configprompt "github.com/amar-jay/webssh/apps/cli/internal/prompt/config"
 )
 
+// Version and Commit are injected by the reproducible release build.
+var Version = "dev"
+var Commit = "unknown"
+
 func New() *cli.Command {
 	return &cli.Command{
-		Name:  "webssh",
-		Usage: "browser terminals for remote machines",
+		Name:    "webssh",
+		Version: Version + " (" + Commit + "; protocol 2, bridge 1)",
+		Usage:   "browser terminals for remote machines",
 		Commands: []*cli.Command{
 			configCommand(),
 			pairCommand(),

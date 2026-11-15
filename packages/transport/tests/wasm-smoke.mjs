@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInThisContext } from 'node:vm';
 
-const assets = new URL('../../../apps/web/static/tailcat/', import.meta.url);
+const base = new URL('../../../apps/web/static/tailcat/', import.meta.url);
+const manifest = JSON.parse(await readFile(new URL('build.json',base)));
+const assets = new URL(manifest.assetDir+'/',base);
 runInThisContext(await readFile(new URL('wasm_exec.js', assets), 'utf8'));
 const go = new globalThis.Go();
 const { instance } = await WebAssembly.instantiate(gunzipSync(await readFile(new URL('webssh.wasm.gz', assets))), go.importObject);

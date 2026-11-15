@@ -266,6 +266,8 @@ export function attachRemoteSession(
             break;
           }
           if (!ready) {
+            if(message.type === "ready" && message.version !== version) throw new Error("Unsupported terminal protocol");
+            if(message.type === "ready" && connection.backend === "tmux" && !message.capabilities?.includes("persistence")) throw new Error("Persistent capability mismatch");
             if (
               message.type !== "ready" ||
               message.version !== version ||
@@ -340,8 +342,8 @@ export function attachRemoteSession(
         finish({
           state: "failed",
           ...(error instanceof Error &&
-          error.message === "Unsupported terminal protocol"
-            ? { reason: "unsupported_protocol", retryable: false }
+          ["Unsupported terminal protocol", "Persistent capability mismatch"].includes(error.message)
+            ? { reason: error.message === "Persistent capability mismatch" ? "capability_mismatch" : "unsupported_protocol", retryable: false }
             : {}),
         });
     } finally {

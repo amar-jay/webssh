@@ -1,0 +1,88 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GOMAXPROCS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          cache-dependency-path: "**/go.sum"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate tag and manifest
+        run: node scripts/verify-release.mjs
+      - run: sudo apt-get update && sudo apt-get install -y tmux protobuf-compiler vim
+      - run: pnpm --filter @webssh/protocol generate
+      - run: git diff --exit-code
+      - run: pnpm go:test && pnpm go:vet && pnpm check && pnpm -r --if-present test
+      - run: node scripts/build-wasm.mjs --force
+      - run: pnpm --filter @webssh/transport test:wasm
+      - run: pnpm --filter @webssh/web build
+      - name: Browser integration before packaging
+        run: |
+          pnpm --filter @webssh/web exec playwright-core install --with-deps chromium
+          export CHROME_BIN="$(cd apps/web && node --input-type=module -e 'import {chromium} from "playwright-core"; console.log(chromium.executablePath())')"
+          pnpm test:browser
+      - run: node scripts/release.mjs
+      - run: node scripts/test-install.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: dist/release/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/web/.svelte-kit/cloudflare
+          include-hidden-files: true
+  validate-installers:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist/release
+      - name: Execute installer and binary on the target platform
+        run: node scripts/test-install.mjs
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, validate-installers]
+    environment: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - name: Publish versioned CLI archives and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes release/*

@@ -20,7 +20,7 @@ try {
  await until(async()=>{try{return (await fetch(origin)).ok;}catch{return false;}},'web startup');
  browser=await chromium.launch({executablePath:process.env.CHROME_BIN || '/snap/bin/chromium',headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--ignore-certificate-errors']});
  page=await browser.newPage({viewport:{width:1000,height:700},ignoreHTTPSErrors:true});
- const errors=[];page.on('pageerror',error=>{ errors.push('browser error'); console.error(error.message.replaceAll(descriptor.address,'[redacted]').replaceAll(descriptor.token,'[redacted]')); });
+ const errors=[];page.on('pageerror',()=>{errors.push('browser error');});
  const text=()=>page.locator('.xterm-accessibility').innerText();
  async function see(value){await until(async()=>{try{const content=await text();return content.includes(value);}catch{return false;}},value);}
  async function command(value){await page.locator('.xterm-helper-textarea').focus();await page.keyboard.type(value);await page.keyboard.press('Enter');}
@@ -63,7 +63,7 @@ try {
  assert.equal(errors.length,0);
  console.log('Browser/DERP/native PTY: auth, Unicode, paste, Ctrl+C, resize, vi, exit and disposal passed.');
 } catch(error) {
- if(page) console.error('terminal test snapshot', (await page.locator('.xterm-accessibility').innerText().catch(()=>'' )).replaceAll(descriptor.address,'[redacted]').replaceAll(descriptor.token,'[redacted]'));
+ console.error('Browser terminal integration failed; terminal contents omitted.');
  throw error;
 } finally {
  await browser?.close();vite.kill('SIGTERM');

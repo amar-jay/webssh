@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -193,6 +194,8 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 		return nil
 	}
+	lifecycle := log.New(os.Stderr, "", 0)
+	opts.Event = func(event agent.Event) { lifecycle.Printf(`{"component":"agent","event":%q}`, event) }
 	server, err := agent.New(opts)
 	if err != nil {
 		return err

@@ -79,7 +79,7 @@ test('client close is idempotent and closes owned streams', async () => {
 });
 
 test('rejects incompatible bridges, invalid ports and server-side loading', async () => {
-  assert.throws(() => createTransport({ version: 2 }), /Unsupported/);
+  assert.throws(() => createTransport({ version: 2 }), /version mismatch/);
   const { transport, calls } = setup();
   const client = await transport.createClient({ address: 'test' });
   for (const port of [0, 65536, 1.5, NaN]) await assert.rejects(client.dial(port), /Invalid TCP port/);

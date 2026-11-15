@@ -10,6 +10,8 @@
     "binding": "ASSETS",
     "directory": ".svelte-kit/cloudflare"
   },
+  "routes": [{"pattern":"ssh.amarjay.com","custom_domain":true}],
+  "workers_dev": false,
   "vars": {
     "PUBLIC_ORIGIN": "https://ssh.amarjay.com"
   },

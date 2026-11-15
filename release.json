@@ -1,0 +1,9 @@
+{
+  "version": "0.1.0",
+  "protocol": 2,
+  "bridge": 1,
+  "go": "go1.27.4",
+  "tailcat": "v0.7.0",
+  "tailscale": "v1.103.0-pre.0.20260916030321-a2263542f260",
+  "protoc": "3.21.12"
+}

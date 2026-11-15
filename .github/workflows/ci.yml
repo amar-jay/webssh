@@ -1,0 +1,60 @@
+name: Verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GOMAXPROCS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          cache-dependency-path: "**/go.sum"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler tmux vim
+      - name: Bounded native tests and vet
+        run: |
+          pnpm go:test
+          pnpm go:vet
+      - name: Pinned protoc and generated source drift
+        run: |
+          protoc --version
+          pnpm --filter @webssh/protocol generate
+          git diff --exit-code -- packages/protocol/gen packages/protocol/src/generated
+      - run: pnpm check
+      - run: pnpm -r --if-present test
+      - name: Build assets only when transport inputs changed
+        uses: actions/cache@v4
+        with:
+          path: apps/web/static/tailcat
+          key: wasm-${{ runner.os }}-${{ hashFiles('release.json', 'go.work*', '**/go.mod', '**/go.sum', 'packages/transport/**/*.go', 'scripts/build-wasm.mjs', 'scripts/wasm-tags.txt') }}
+      - run: pnpm wasm:build
+      - run: pnpm --filter @webssh/transport test:wasm
+      - run: pnpm --filter @webssh/web build
+      - name: Install browser integration prerequisites
+        run: |
+          pnpm --filter @webssh/web exec playwright-core install --with-deps chromium
+          echo "CHROME_BIN=$(cd apps/web && node --input-type=module -e 'import {chromium} from "playwright-core"; console.log(chromium.executablePath())')" >> "$GITHUB_ENV"
+      - name: Real browser / local DERP / native PTY integration
+        run: pnpm test:browser
+      - name: Package and install native release archive
+        run: |
+          node scripts/release.mjs --native
+          node scripts/test-install.mjs

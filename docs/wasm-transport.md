@@ -2,7 +2,7 @@
 
 `packages/transport` owns our Go/WASM entrypoint and TypeScript API. It imports Tailcat `v0.7.0`; it does not compile or expose the upstream demo bridge. Native code can reuse the Go client lifecycle package without importing CLI code.
 
-This is a transport foundation. The agent server, pairing, authorization grants, terminal framing, PTYs, tmux, and real terminal session integration remain to be implemented. The `/s/<session_id>` route uses the real browser session adapter with a single-use development handoff from `/dev/connect`. Mock sessions require an explicit choice on that development page. See [browser session](browser-session.md).
+The `/s/<session_id>` route uses authenticated session resolution, short-lived grants and the persistent tmux agent. `/dev/connect` and mock handoffs are available only in loopback development. See [durable sessions](durable-sessions.md) and [deployment and distribution](deployment.md).
 
 ## Build and use
 
@@ -13,7 +13,7 @@ pnpm wasm:build
 pnpm --filter @webssh/transport test:wasm
 ```
 
-The build writes `webssh.wasm.gz`, the matching Go toolchain's `wasm_exec.js`, and version metadata to ignored `apps/web/static/tailcat/`. It does not modify READMEs or fetch a hosted demo binary. The initial build is approximately 33 MiB uncompressed. It currently uses an untrimmed Go build for correctness; version-specific feature omission and compression are future deployment work. Check generated size against the actual hosting platform's limits before deploying.
+The build writes a versioned gzip asset, matching Go runtime and hash/size manifest under ignored `apps/web/static/tailcat/`. Reviewed Tailcat v0.7.0 omission tags reduce the raw binary to approximately 26.2 MiB and gzip to 6.1 MiB. The build enforces Cloudflare’s 25 MiB per-asset upload limit. Inputs are fingerprinted so unchanged builds reuse verified assets. See [deployment and distribution](deployment.md) for exact version requirements, caching and release gates.
 
 Call only in browser code, such as a Svelte `onMount` callback:
 
@@ -22,7 +22,7 @@ import { loadTransport } from '@webssh/transport';
 
 const transport = await loadTransport();
 const identity = await transport.generateIdentity();
-// Enroll identity.publicKey through our future authorized pairing flow.
+// Use the connection descriptor returned by authenticated session resolution.
 // Keep identity.nodePrivateKey secret; persistence is the caller's policy.
 const client = await transport.createClient({
   address: authorizedTailcatAddress,
@@ -32,7 +32,7 @@ try {
   const conn = await client.dial(applicationPort, { signal });
   try {
     // One reader loop. Await consumption before reading more.
-    // A real terminal uses our future frame decoder, not raw stream bytes.
+    // Terminal sessions use the shared protocol frame decoder.
     for (;;) {
       const bytes = await conn.read({ signal });
       if (bytes === null) break;
@@ -46,7 +46,7 @@ try {
 }
 ```
 
-The snippet's application variables are placeholders. No shell connection is exposed by this change. The WASM loader is lazy and shared per browser runtime; importing the package during SSR does not start WASM, and calling its loader during SSR rejects.
+The snippet's application variables are placeholders. Application code must obtain an authorized descriptor/grant before attaching. The WASM loader is lazy and shared per browser runtime; importing the package during SSR does not start WASM, and calling its loader during SSR rejects.
 
 ## Contract and ownership
 
@@ -62,10 +62,10 @@ The snippet's application variables are placeholders. No shell connection is exp
 
 The Go Promise executor callback is released after synchronous Promise construction. Only the two global bridge callbacks remain registered for the WASM runtime's lifetime. Request cancellation records are removed on completion; stream handles are removed on explicit stream/client close. Always close streams after EOF/errors to release handles as well as sockets.
 
-The loader uses same-origin `/tailcat/` paths and buffers the WASM before instantiation, so it does not depend on streaming MIME configuration. It fetches the gzip asset and decompresses it with the browser’s DecompressionStream before instantiation, keeping the uploaded asset below Cloudflare’s individual file limit. It does not yet implement download progress. Hosts with an application base path need a loader path configuration before using this default. Configure HTTPS/WSS, relay origins, CORS, CSP, and WASM execution policy at deployment.
+The loader uses same-origin `/tailcat/` paths and buffers the WASM before instantiation, so it does not depend on streaming MIME configuration. It fetches the gzip asset and decompresses it with the browser’s DecompressionStream before instantiation, keeping the uploaded asset below Cloudflare’s individual file limit. The manifest and assets have integrity/version checks; it does not implement download progress. Hosts with an application base path need a loader path configuration before using this default. Production config explicitly sets HTTPS/WSS relay origins and CSP. See [deployment](deployment.md).
 
 ## Verification
 
 `pnpm go:test` covers native lifecycle behavior with in-memory sockets, including pending-dial cancellation and late-socket cleanup. Transport JavaScript tests exercise ordering, queue bounds, cancellation races, ownership, and SSR rejection. `test:wasm` executes the real compiled Go bridge in Node to check readiness, identity encoding, argument errors, and cleanup operations. It requires the generated assets first and deliberately terminates its process because the WASM program stays alive.
 
-These tests do not establish browser-to-agent connectivity through a real relay. A browser/local-DERP integration test and terminal protocol tests are required when wiring the agent and terminal route.
+`pnpm test:browser` runs opt-in real browser/local-DERP/native-PTY integration. Deployed signed-in browser attachment and intended relay capacity remain separate release gates.

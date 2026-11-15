@@ -170,6 +170,7 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 					err := a.opts.CheckAccess(check, sessionID, "check:"+nonce)
 					cancel()
 					if err != nil {
+						a.event(AccessDenied)
 						cancel()
 						conn.Close()
 						if err.Error() == "session_ended" && a.opts.Manager != nil {
@@ -239,6 +240,7 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 		return
 	}
 
+	a.event(SessionAttached)
 	outputDone := make(chan error, 1)
 	go func() {
 		buf := make([]byte, 16<<10)
@@ -371,6 +373,7 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 			}
 			return
 		}
+		a.event(ProcessEnded)
 		ended = true
 		// Drain normal PTY output before the exit frame. Background processes may
 		// retain the slave; bound the drain rather than waiting forever for EOF.
@@ -396,6 +399,7 @@ func (a *Agent) handle(parent context.Context, conn net.Conn) {
 			out.fail("backend_unavailable")
 			return
 		}
+		a.event(ProcessEnded)
 		ended = true
 		_ = a.opts.Manager.Terminate(sessionID)
 		_ = out.send(protocol.Message{Type: "exit", Code: result.code, CodeKnown: result.known})

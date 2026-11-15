@@ -44,3 +44,5 @@ Paired mode now requires online run registration and session-scoped grants. Ephe
 For availability, startup cleanup, connection deadlines, and the session lifecycle, see [CLI-to-browser flow](cli-browser-flow.md).
 
 For owned tmux cleanup while serve is stopped, use `webssh sessions <path>`, `webssh sessions --terminate <id> <path>`, or `webssh sessions --terminate-all <path>`. See [access and lifecycle controls](access-lifecycle.md).
+
+Versioned installation, updates, checksums and rollback are documented in [deployment and distribution](deployment.md).

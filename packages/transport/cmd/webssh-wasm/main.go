@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"math"
 	"sync"
 	"syscall/js"
@@ -27,6 +29,8 @@ var state = struct {
 }{clients: make(map[int]*transport.Client), streams: make(map[int]*transport.Stream), owners: make(map[int]int), pending: make(map[int]context.CancelFunc)}
 
 func main() {
+	// Upstream WebSocket diagnostics bypass Logf; never forward raw transport errors.
+	log.SetOutput(io.Discard)
 	js.Global().Set("websshTailcat", map[string]any{
 		"version": 1,
 		"request": js.FuncOf(request),

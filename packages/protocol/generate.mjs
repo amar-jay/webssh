@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync } from 'node:fs';
 const cwd = fileURLToPath(new URL('.', import.meta.url));
+if(execFileSync('protoc',['--version'],{encoding:'utf8'}).trim()!=='libprotoc 3.21.12') throw new Error('Protocol generation requires protoc 3.21.12 (see docs/deployment.md)');
 mkdirSync(new URL('bin/', import.meta.url), { recursive: true });
 execFileSync('go', ['install', '-p', '1', 'google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11'], {
   cwd, env: { ...process.env, GOMAXPROCS: '2', GOBIN: fileURLToPath(new URL('bin/', import.meta.url)) }, stdio: 'inherit'

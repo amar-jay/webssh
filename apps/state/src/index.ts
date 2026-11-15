@@ -1452,6 +1452,10 @@ export class WebSSHState extends DurableObject<Env> {
       bucket,
     );
   }
+  health() {
+    return {schema: Number([...this.ctx.storage.sql.exec('SELECT MAX(id) AS version FROM schema_migrations')][0]?.version ?? 0)};
+  }
+
 }
 
 export default {
