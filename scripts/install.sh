@@ -6,9 +6,9 @@ version=${1:-latest}
 destination=${2:-"$HOME/.local/bin"}
 case "$destination" in /*) ;; *) destination="$(pwd)/$destination";; esac
 if [ "$version" = latest ]; then
-  resolved=$(curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 -o /dev/null -w '%{url_effective}' https://github.com/amar-jay/webssh/releases/latest)
-  version=${resolved##*/}
-  version=${version#v}
+  # The project ships prereleases too; GitHub's /releases/latest excludes them.
+  metadata=$(curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 30 'https://api.github.com/repos/amar-jay/webssh/releases?per_page=1')
+  version=$(printf '%s\n' "$metadata" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\([0-9.]*\)".*/\1/p' | sed -n '1p')
 fi
 case "$version" in *[!0-9.]*|''|.*|*..*) echo 'Invalid version' >&2; exit 1;; esac
 case "$(uname -s)" in Linux) platform=linux;; Darwin) platform=darwin;; *) echo 'Supported: Linux and macOS' >&2; exit 1;; esac

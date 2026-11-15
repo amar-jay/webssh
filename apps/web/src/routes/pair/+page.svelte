@@ -2,7 +2,6 @@
   import AppShell from "#lib/components/AppShell.svelte";
   import CommandBlock from "#lib/components/CommandBlock.svelte";
   import { buttonPrimary, eyebrow, machineIcon } from "#lib/ui.js";
-  import Icon from "#lib/components/Icon.svelte";
   let { data } = $props();
   let status = $state<"idle" | "working" | "done" | "error">("idle");
   let message = $state("");
@@ -76,9 +75,7 @@
           Credentials are saved on your machine. Run webssh serve . there, then
           open its browser URL.
         </div>
-        <a class="{buttonPrimary} mt-[18px] w-full" href="/dashboard"
-          >Back to dashboard <Icon name="arrow-right" class="size-4" /></a
-        >
+        <a class="{buttonPrimary} mt-[18px] w-full" href="/dashboard">Back to dashboard</a>
       {:else if !data.code || data.error}
         <div class="{machineIcon} mb-6" aria-hidden="true">›_</div>
         <h2 id="pair-heading" class="text-2xl tracking-tight">
@@ -116,9 +113,7 @@
           <p id="code-hint" class="mt-2.5 text-xs text-secondary">
             Keep webssh pair running while you continue.
           </p>
-          <button class="{buttonPrimary} mt-[18px] w-full" type="submit"
-            >Continue <Icon name="arrow-right" class="size-4" /></button
-          >
+          <button class="{buttonPrimary} mt-[18px] w-full" type="submit">Continue</button>
         </form>
       {:else}
         <div class="{machineIcon} mb-6" aria-hidden="true">›_</div>
@@ -150,8 +145,7 @@
           type="button"
           onclick={approve}
           disabled={status === "working"}
-          >{status === "working" ? "Approving…" : "Approve machine"}
-          {#if status !== "working"}<Icon name="arrow-right" class="size-4" />{/if}</button
+          >{status === "working" ? "Approving…" : "Approve machine"}</button
         >
         <p class="mt-2.5 text-xs text-secondary" aria-live="polite">
           {status === "working"

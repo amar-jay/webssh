@@ -1,3 +1,4 @@
+import type { AuthEnv } from "#lib/auth/env.js";
 import { runtimeEnv } from "#lib/cloudflare/runtime.js";
 import { ownerStub } from "#lib/state/client.js";
 
@@ -10,7 +11,7 @@ export async function loadWorkspace(platform: Platform, ownerId: string) {
     sessions: [],
     unavailable: true,
   };
-  const env = await runtimeEnv(platform?.env);
+  const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
   // Local dev has no Durable Object. Show an empty workspace instead of a failure.
   if (!env?.WEBSSH_STATE)
     return import.meta.env.DEV ? { ...empty, unavailable: false } : empty;

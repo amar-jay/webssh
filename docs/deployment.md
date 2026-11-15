@@ -94,6 +94,8 @@ webssh pair
 webssh serve /path/to/workspace
 ```
 
+The unversioned `https://ssh.amarjay.com/install.sh` route serves the same installer. With no version argument, or `latest`, it selects the newest published GitHub release, including prereleases, and verifies that release’s archive checksum. An explicit version still pins the download. Version 0.1.1 includes local tmux configuration support (`tmux_config = "default"`, an absolute path, or `"none"`) and the shared Tokyo Night UI. Localhost sign-in is limited to development builds; production ignores the development cookie.
+
 The installer selects the supported OS/CPU, downloads only from HTTPS GitHub Releases, verifies the exact archive against `SHA256SUMS`, extracts the binary, runs its version command, and atomically replaces the destination binary. It never installs dependencies, starts a background service, rewrites configuration or removes session state. `scripts/test-install.mjs` executes this installer with a recorded network boundary and tests fresh install, repeat update and checksum failure preserving the existing binary. Add `~/.local/bin` to PATH if needed; install tmux through your system package manager. For an update, stop the tmux agent, install the chosen version, then restart the same workspace/config/state scope. Work stays in tmux. Retain the previous verified archive for rollback. Checksums protect integrity; they are not an independent code-signing trust channel.
 
 ## Compatibility, rollback and diagnostics

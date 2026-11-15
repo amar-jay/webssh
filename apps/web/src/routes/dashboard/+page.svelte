@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head><title>Dashboard · WebSSH</title></svelte:head>
-<AppShell signedIn={true}>
+<AppShell signedIn={true} width="narrow">
   <WorkspaceDashboard
     agents={data.agents}
     runs={data.runs}

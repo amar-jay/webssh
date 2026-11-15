@@ -24,7 +24,7 @@ try {
   // Replace only the network boundary with recorded release files. Execute the real installer.
   await writeFile(
     join(bin, "curl"),
-    `#!/bin/sh\ncase "$*" in *SHA256SUMS*) source="$RELEASE_FIXTURE/SHA256SUMS";; *) source="$RELEASE_FIXTURE/$RELEASE_ARCHIVE";; esac\nwhile [ "$#" -gt 0 ]; do if [ "$1" = -o ]; then cp "$source" "$2"; exit; fi; shift; done\nexit 1\n`,
+    `#!/bin/sh\ncase "$*" in *api.github.com*) cat "$RELEASE_FIXTURE/metadata.json"; exit;; esac\ncase "$*" in *SHA256SUMS*) source="$RELEASE_FIXTURE/SHA256SUMS";; *) source="$RELEASE_FIXTURE/$RELEASE_ARCHIVE";; esac\nwhile [ "$#" -gt 0 ]; do if [ "$1" = -o ]; then cp "$source" "$2"; exit; fi; shift; done\nexit 1\n`,
     { mode: 0o755 },
   );
   await copyFile(join(root, "dist/release", archive), join(scratch, archive));
@@ -38,14 +38,16 @@ try {
     RELEASE_FIXTURE: scratch,
     RELEASE_ARCHIVE: archive,
   };
-  const install = () =>
+  await writeFile(join(scratch, "metadata.json"), JSON.stringify([{ tag_name: `v${version}`, prerelease: true }]));
+  const install = (selected = version) =>
     execFileSync(
       "sh",
-      [join(root, "scripts/install.sh"), version, destination],
+      [join(root, "scripts/install.sh"), selected, destination],
       { env, encoding: "utf8" },
     );
   install();
   install();
+  install("latest");
   assert.match(
     execFileSync(join(destination, "webssh"), ["--version"], {
       encoding: "utf8",
@@ -53,11 +55,14 @@ try {
     new RegExp(version.replaceAll(".", "\\.")),
   );
   const before = await readFile(join(destination, "webssh"));
+  await writeFile(join(scratch, "metadata.json"), "[]");
+  assert.throws(() => install("latest"));
+  assert.deepEqual(await readFile(join(destination, "webssh")), before);
   await writeFile(join(scratch, archive), "corrupt archive");
   assert.throws(install);
   assert.deepEqual(await readFile(join(destination, "webssh")), before);
   console.log(
-    "Fresh install, atomic update, checksum failure and existing-binary preservation passed.",
+    "Fresh and latest-prerelease install, atomic update, missing release, checksum failure and existing-binary preservation passed.",
   );
 } finally {
   await rm(scratch, { recursive: true, force: true });

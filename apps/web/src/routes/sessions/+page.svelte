@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head><title>Sessions · WebSSH</title></svelte:head>
-<AppShell signedIn={true}>
+<AppShell signedIn={true} width="narrow">
   <SessionList
     agents={data.agents}
     sessions={data.sessions}

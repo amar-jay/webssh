@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 import { resolve } from 'node:path';
 import { signSession } from '../src/lib/auth/session.ts';
 async function moduleAt(path, plugins = []) {
- const result=await build({entryPoints:[resolve(path)],bundle:true,platform:'node',format:'esm',write:false,plugins});
+ const result=await build({entryPoints:[resolve(path)],bundle:true,platform:'node',format:'esm',write:false,define:{'import.meta.env.DEV':'false'},plugins});
  return import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
 }
 const hook=await moduleAt('src/hooks.server.ts');
@@ -85,8 +85,18 @@ test('session resolver returns a fixed quota error without backend diagnostics',
 });
 
 test('dashboard revocation derives the owner from the session, never posted identity',async()=>{
- const root=await moduleAt('src/routes/+page.server.ts');let called=false;
+ const root=await moduleAt('src/routes/dashboard/+page.server.ts');let called=false;
  const namespace={idFromName:name=>{assert.equal(name,'owner:42');return name;},get:()=>({revokeAgent:async(owner,id)=>{called=true;assert.equal(owner,'42');assert.equal(id,'agent-123456789012');return true;}})};
  const response=await root.actions.revoke({locals:{user:{ownerId:'42',sessionId:'browser'}},platform:{env:{WEBSSH_STATE:namespace}},request:new Request('https://webssh.example/?/revoke',{method:'POST',body:new URLSearchParams({agentId:'agent-123456789012',ownerId:'different-owner'})})});
  assert(called);assert.match(response.message,/Access revoked/);
+});
+
+
+test('production ignores the localhost development login cookie', async () => {
+ for (const origin of ['http://localhost:5173', 'https://ssh.amarjay.com']) {
+  const event = { locals: {}, url: new URL(origin), platform: undefined,
+   cookies: { get: () => '1' }, request: new Request(origin, { headers: { cookie: 'webssh_dev=1' } }) };
+  await hook.handle({ event, resolve: async () => new Response('ok') });
+  assert.equal(event.locals.user, null);
+ }
 });

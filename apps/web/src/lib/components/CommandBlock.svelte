@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { Tooltip } from "bits-ui";
-  import Icon from "./Icon.svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import Copy from "@lucide/svelte/icons/copy";
+  import Tip from "./Tip.svelte";
+
   let { command, bare = false }: { command: string; bare?: boolean } = $props();
   let copied = $state(false);
   let failed = $state(false);
@@ -23,24 +25,15 @@
   <span class="font-mono text-accent" aria-hidden="true">$</span><code
     class="min-w-0 font-mono break-all text-ink whitespace-normal">{command}</code
   >
-  <Tooltip.Provider
-    ><Tooltip.Root
-      ><Tooltip.Trigger
-        class="ml-2 inline-flex size-[1em] shrink-0 items-center justify-center text-secondary hover:text-ink"
-        onclick={copy}
-        aria-label={copied ? "Copied" : `Copy ${command}`}
-        >{#if copied}<Icon name="check" class="size-[1em]" />{:else}<Icon
-            name="copy"
-            class="size-[1em]"
-          />{/if}</Tooltip.Trigger
-      ><Tooltip.Portal
-        ><Tooltip.Content
-          class="z-[60] rounded bg-ink px-2.5 py-2 text-xs text-canvas"
-          sideOffset={8}>Copy command</Tooltip.Content
-        ></Tooltip.Portal
-      ></Tooltip.Root
-    ></Tooltip.Provider
+  <Tip
+    label="Copy command"
+    class="ml-2 inline-flex size-[1em] shrink-0 items-center justify-center text-secondary hover:text-ink"
+    type="button"
+    onclick={copy}
+    aria-label={copied ? "Copied" : `Copy ${command}`}
   >
+    {#if copied}<Check class="size-[1em]" />{:else}<Copy class="size-[1em]" />{/if}
+  </Tip>
 </div>
 {#if failed}<p class="text-danger" role="alert">
     Couldn’t copy. Select the command to copy it manually.
