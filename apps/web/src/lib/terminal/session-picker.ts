@@ -1,10 +1,16 @@
 import type { SessionTerminal } from "./create-terminal.js";
 
-type Terminal = Pick<
-  SessionTerminal["terminal"],
-  "write" | "onData" | "onResize" | "reset" | "focus" | "rows"
->;
+type Terminal = Pick<SessionTerminal["terminal"], "write" | "reset" | "focus">;
 type Choice = { id: string; status: string; createdAt: number };
+export type SessionPickerView = {
+  choices: Choice[];
+  workspace: string;
+  selected: number;
+  loading: boolean;
+  ready: boolean;
+  online: boolean;
+  error: string;
+};
 const safeText = (value: string) =>
   value
     .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "")
@@ -12,11 +18,15 @@ const safeText = (value: string) =>
 const validId = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(value);
 
-/** Local terminal UI; its keystrokes are disposed before remote input is enabled. */
+/** Picker state for the centered terminal overlay; never forwards selection keys. */
 export function pickTerminalSession(
   terminal: Terminal,
   reference: string,
-  options: { onSelect: (id: string) => void; fetcher?: typeof fetch },
+  options: {
+    onSelect: (id: string) => void;
+    onView: (view: SessionPickerView) => void;
+    fetcher?: typeof fetch;
+  },
 ) {
   const lifetime = new AbortController();
   let loading = false,
@@ -31,42 +41,23 @@ export function pickTerminalSession(
   const url = `/api/sessions/${encodeURIComponent(reference)}/choices`;
   function render() {
     if (lifetime.signal.aborted || finished) return;
-    const lines = [
-      "\x1b[38;2;130;170;255mwebssh\x1b[0m  /  Choose a session",
-      "",
-      safeText(workspace),
-      "",
-    ];
-    const visible = Math.max(1, terminal.rows - 11);
-    const start = Math.max(
-      0,
-      Math.min(selected - Math.floor(visible / 2), choices.length - visible),
-    );
-    if (start) lines.push(`  … ${start} earlier`);
-    for (let i = start; i < Math.min(choices.length, start + visible); i++) {
-      const choice = choices[i];
-      const label = `${choice.id.slice(0, 8)}  ${choice.status === "active" ? "in use" : choice.status === "offline" ? "offline" : "available"}`;
-      lines.push(
-        `${selected === i ? "\x1b[38;2;130;170;255m> " : "  "}${label}\x1b[0m`,
-      );
-    }
-    if (start + visible < choices.length)
-      lines.push(`  … ${choices.length - start - visible} more`);
-    lines.push(
-      `${selected === choices.length ? "\x1b[38;2;130;170;255m> " : "  "}New session${online ? "" : " (agent offline)"}\x1b[0m`,
-      "",
-    );
-    if (loading) lines.push("Loading…");
-    else if (error) lines.push(error);
-    else lines.push("↑/↓ select · Enter open · n new · r refresh");
-    terminal.write("\x1b[2J\x1b[H" + lines.join("\r\n"));
+    options.onView({
+      choices,
+      workspace: safeText(workspace),
+      selected,
+      loading,
+      ready,
+      online,
+      error,
+    });
   }
+
   function select(id: string) {
     if (finished || lifetime.signal.aborted) return;
     finished = true;
     dispose();
     terminal.reset();
-    // Clear after any already-queued picker writes, before remote output starts.
+    // Start the remote shell with an empty terminal buffer.
     terminal.write("\x1b[2J\x1b[3J\x1b[H");
     terminal.focus();
     options.onSelect(id);
@@ -159,7 +150,7 @@ export function pickTerminalSession(
       render();
     }
   }
-  const keys = terminal.onData((key) => {
+  function input(key: string) {
     if (loading || finished) return;
     if (key === "r" || key === "R") {
       void load();
@@ -179,13 +170,35 @@ export function pickTerminalSession(
       return;
     }
     render();
-  });
-  const resize = terminal.onResize(render);
+  }
   function dispose() {
     lifetime.abort();
-    keys.dispose();
-    resize.dispose();
   }
   const done = load();
-  return { dispose, done };
+  function highlight(index: number) {
+    if (
+      !ready ||
+      loading ||
+      finished ||
+      lifetime.signal.aborted ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index > choices.length
+    )
+      return;
+    selected = index;
+    error = "";
+    render();
+  }
+  return {
+    dispose,
+    done,
+    input,
+    refresh: load,
+    highlight,
+    choose(index: number) {
+      highlight(index);
+      if (selected === index) void open();
+    },
+  };
 }

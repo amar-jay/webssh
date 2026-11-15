@@ -5,12 +5,18 @@
   } from "#lib/session/paired-session.js";
   import { replaceState } from "$app/navigation";
   import { page } from "$app/state";
-  import { pickTerminalSession } from "#lib/terminal/session-picker.js";
+  import {
+    pickTerminalSession,
+    type SessionPickerView,
+  } from "#lib/terminal/session-picker.js";
+  import TerminalSessionPicker from "#lib/components/TerminalSessionPicker.svelte";
   import ConnectionStatus from "#lib/components/ConnectionStatus.svelte";
   let status = $state<Status | null>({
     phase: "connecting",
     message: "Preparing terminal",
   });
+  let pickerView = $state<SessionPickerView | null>(null);
+  let pickerActions: ReturnType<typeof pickTerminalSession> | undefined;
   let retry = () => window.location.reload();
   const dev = import.meta.env.DEV;
   import SessionTerminal from "#lib/components/SessionTerminal.svelte";
@@ -31,7 +37,11 @@
         controller.terminal,
         params.session_id,
         {
+          onView(view) {
+            pickerView = view;
+          },
           onSelect(id) {
+            pickerView = null;
             replaceState(`/s/${encodeURIComponent(id)}`, page.state);
             session = attachPairedSession(controller, id, {
               onStatus: (next) => {
@@ -45,7 +55,10 @@
           },
         },
       );
+      pickerActions = picker;
       return () => {
+        pickerView = null;
+        pickerActions = undefined;
         picker.dispose();
         session?.dispose();
       };
@@ -88,4 +101,14 @@
   />
 {/key}
 
-{#if status}<ConnectionStatus {status} onRetry={() => retry()} />{/if}
+{#if pickerView}
+  <TerminalSessionPicker
+    view={pickerView}
+    onInput={(key) => pickerActions?.input(key)}
+    onChoose={(index) => pickerActions?.choose(index)}
+    onHighlight={(index) => pickerActions?.highlight(index)}
+    onRefresh={() => {
+      void pickerActions?.refresh();
+    }}
+  />
+{:else if status}<ConnectionStatus {status} onRetry={() => retry()} />{/if}
