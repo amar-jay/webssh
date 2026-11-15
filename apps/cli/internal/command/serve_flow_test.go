@@ -87,7 +87,7 @@ func TestServePrintsOpaqueURLAfterAnnouncementAndEndsRun(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- New().Run(ctx, []string{"webssh", "serve", "--config", cfg, "--credentials", cred, "--derpmap-url", server.URL + "/derpmap", "--json", dir})
+		done <- New().Run(ctx, []string{"webssh", "serve", "--backend", "ephemeral", "--config", cfg, "--credentials", cred, "--derpmap-url", server.URL + "/derpmap", "--json", dir})
 	}()
 	// Even on test failure, stop and join before restoring process stdout.
 	joined := false

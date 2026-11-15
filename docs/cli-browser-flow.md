@@ -1,5 +1,7 @@
 # CLI-to-browser flow (milestone 3)
 
+This flow now uses persistent tmux by default. The [durable-session lifecycle](durable-sessions.md) supersedes the original connection-scoped process behavior.
+
 ## Normal use
 
 ```sh
@@ -10,7 +12,7 @@ webssh serve /path/to/workspace
 
 Approve the pairing link with GitHub. After serve announces its listener, open the printed `https://ssh.amarjay.com/s/<opaque-session-id>` URL. Sign in with the same GitHub account. The browser resolves the session and attaches without copying tokens or addresses.
 
-Keep serve running. The signed-in home page lists paired machines, available workspaces, and recent sessions. Open terminal reuses an unended session or creates a fresh one after the previous session ends. End session prevents admission and causes an active agent to close the shell on its next authorization check. One browser controller is allowed per running listener. Each attachment starts a connection-scoped shell; detach/disconnect cleans it up. There is no tmux persistence or automatic input replay.
+Keep serve running. The signed-in home page lists paired machines, available workspaces, and recent sessions. Open terminal reuses an unended session or creates a fresh one after the previous session ends. Terminate prevents admission and queues owned-session termination for agent acknowledgment. One browser controller is allowed per stable session. Attach starts a tmux client; detach/disconnect preserves the tmux server and shell. Explicit termination ends the remote session. There is no automatic input replay.
 
 ## Records and authorization
 
@@ -39,7 +41,7 @@ Active authorization is rechecked every two seconds with a three-second request 
 
 ## Startup and shutdown
 
-Local configuration, workspace, shell, port, and credential validation happen before registration. Registration creates a starting run and initial session. Listen or announce failures trigger bounded best-effort cleanup and print no usable browser URL. SIGINT/SIGTERM stops the listener, closes connections, kills/reaps connection-scoped shells, and then attempts to mark the run and its remaining sessions ended using an independent four-second cleanup budget.
+Local configuration, workspace, shell, port, and credential validation happen before registration. Registration creates a starting run and initial session. Listen or announce failures trigger bounded best-effort cleanup and print no usable browser URL. SIGINT/SIGTERM stops the listener, closes connections, detaches clients, preserves tmux processes, and marks the run offline (ephemeral mode still kills/reaps connection-scoped shells and marks sessions ended) using an independent four-second cleanup budget.
 
 A crash, network partition, or failed cleanup leaves a record that becomes offline after 35 seconds and expires after 24 hours. Offline does not imply the shell exited. Cleanup alarms and lazy read-time expiry enforce expiry even if no browser visits; old terminal/run metadata is removed after seven days.
 

@@ -105,6 +105,10 @@ ALTER TABLE agents ADD COLUMN previous_token_hash TEXT;` }
 CREATE INDEX agent_runs_owner ON agent_runs(owner_id);
 ALTER TABLE terminal_sessions ADD COLUMN run_id TEXT;
 CREATE INDEX terminal_sessions_run ON terminal_sessions(run_id);` }
+, { id: 5, sql: `ALTER TABLE agent_runs ADD COLUMN backend TEXT NOT NULL DEFAULT 'ephemeral';
+ALTER TABLE agent_runs ADD COLUMN generation TEXT;
+ALTER TABLE grant_nonces ADD COLUMN run_generation TEXT;
+ALTER TABLE terminal_sessions ADD COLUMN termination_requested INTEGER NOT NULL DEFAULT 0;` }
 ];
 
 export function applyMigrations(

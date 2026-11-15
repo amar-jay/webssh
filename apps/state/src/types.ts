@@ -20,6 +20,7 @@ export type TerminalSessionRecord = {
   workspaceLabel: string | null;
   status: 'connecting' | 'offline' | 'active' | 'ended' | 'expired';
   runId?: string | null;
+  terminationRequested?: boolean;
   createdAt: number;
   endedAt: number | null;
 };
@@ -56,7 +57,7 @@ export interface StateAPI {
  listAgents(ownerId:string):Promise<AgentRecord[]>;
  listRuns(ownerId:string):Promise<RunRecord[]>;
  listTerminalSessions(ownerId:string):Promise<TerminalSessionRecord[]>;
- agentRun(ownerId:string,agentId:string,token:string,update:RunUpdate):Promise<{sessionId:string}>;
+ agentRun(ownerId:string,agentId:string,token:string,update:RunUpdate):Promise<{sessionId:string;terminateIds?:string[]}>;
  startRunSession(ownerId:string,runId:string):Promise<TerminalSessionRecord>;
  endTerminalSession(ownerId:string,id:string):Promise<boolean>;
  resolveSession(ownerId:string,id:string,browserId:string):Promise<ResolvedSession>;
@@ -77,12 +78,17 @@ export interface StateAPI {
  completePairing(id:string,ownerId:string,agent:{agentId:string;agentToken:string;grantKey:string;machineName:string}):Promise<void>;
  abortPairing(id:string,ownerId:string):Promise<void>;
  pollPairing(code:string,secret:string):Promise<PairingPollResult>;
- agentSession(ownerId:string,agentId:string,token:string,id?:string,nonce?:string,runId?:string):Promise<{sessionId:string}>;
+ agentSession(ownerId:string,agentId:string,token:string,id?:string,nonce?:string,runId?:string,generation?:string):Promise<{sessionId:string}>;
 }
 
 export type RunUpdate = {
  operation: 'start' | 'announce' | 'heartbeat' | 'offline' | 'end';
  runId: string;
+ backend?: 'tmux' | 'ephemeral';
+ generation?: string;
+ recoveredIds?: string[];
+ endedIds?: string[];
+ terminatedIds?: string[];
  machineName?: string;
  workspaceLabel?: string;
  address?: string;
@@ -92,10 +98,10 @@ export type RunUpdate = {
 
 /** Safe dashboard metadata, deliberately excludes transport descriptors and credentials. */
 export type RunRecord = {
- runId: string; agentId: string; machineName: string; workspaceLabel: string;
+ runId: string; agentId: string; machineName: string; workspaceLabel: string; backend:'tmux'|'ephemeral';
  status: 'starting' | 'online' | 'offline' | 'ended' | 'expired';
  lastSeenAt: number; createdAt: number;
 };
 export type ResolvedSession = GrantMintResult & {
- address: string; port: number; derpMapURL?: string;
+ address: string; port: number; derpMapURL?: string; backend?: 'tmux'|'ephemeral';
 };

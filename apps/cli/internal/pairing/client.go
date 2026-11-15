@@ -189,30 +189,47 @@ func (c *Client) Rotate(ctx context.Context, creds credentials.File, next, opera
 
 // RunUpdate publishes only the listener descriptor, never the agent's grant key.
 type RunUpdate struct {
-	Operation      string `json:"operation"`
-	RunID          string `json:"runId"`
-	MachineName    string `json:"machineName,omitempty"`
-	WorkspaceLabel string `json:"workspaceLabel,omitempty"`
-	Address        string `json:"address,omitempty"`
-	Port           int    `json:"port,omitempty"`
-	DERPMapURL     string `json:"derpMapURL,omitempty"`
+	Backend        string   `json:"backend,omitempty"`
+	Generation     string   `json:"generation,omitempty"`
+	RecoveredIDs   []string `json:"recoveredIds,omitempty"`
+	EndedIDs       []string `json:"endedIds,omitempty"`
+	TerminatedIDs  []string `json:"terminatedIds,omitempty"`
+	Operation      string   `json:"operation"`
+	RunID          string   `json:"runId"`
+	MachineName    string   `json:"machineName,omitempty"`
+	WorkspaceLabel string   `json:"workspaceLabel,omitempty"`
+	Address        string   `json:"address,omitempty"`
+	Port           int      `json:"port,omitempty"`
+	DERPMapURL     string   `json:"derpMapURL,omitempty"`
+}
+
+type RunResult struct {
+	SessionID    string   `json:"sessionId"`
+	TerminateIDs []string `json:"terminateIds"`
 }
 
 func (c *Client) UpdateRun(ctx context.Context, creds credentials.File, update RunUpdate) error {
-	var out struct {
-		SessionID string `json:"sessionId"`
-	}
-	return c.post(ctx, "/api/agent/run", struct {
+	_, err := c.SyncRun(ctx, creds, update)
+	return err
+}
+func (c *Client) SyncRun(ctx context.Context, creds credentials.File, update RunUpdate) (RunResult, error) {
+	var out RunResult
+	err := c.post(ctx, "/api/agent/run", struct {
 		RunUpdate
 		OwnerID    string `json:"ownerId"`
 		AgentID    string `json:"agentId"`
 		AgentToken string `json:"agentToken"`
 	}{update, creds.OwnerID, creds.AgentID, creds.AgentToken}, &out)
+	return out, err
 }
 
-func (c *Client) RunAccess(ctx context.Context, creds credentials.File, runID, sessionID, nonce string) error {
+func (c *Client) RunAccess(ctx context.Context, creds credentials.File, runID, sessionID, nonce string, generation ...string) error {
+	var incarnation string
+	if len(generation) > 0 {
+		incarnation = generation[0]
+	}
 	var out struct {
 		SessionID string `json:"sessionId"`
 	}
-	return c.post(ctx, "/api/agent/session", map[string]string{"ownerId": creds.OwnerID, "agentId": creds.AgentID, "agentToken": creds.AgentToken, "runId": runID, "sessionId": sessionID, "nonce": nonce}, &out)
+	return c.post(ctx, "/api/agent/session", map[string]string{"ownerId": creds.OwnerID, "agentId": creds.AgentID, "agentToken": creds.AgentToken, "runId": runID, "sessionId": sessionID, "nonce": nonce, "generation": incarnation}, &out)
 }

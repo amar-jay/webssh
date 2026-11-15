@@ -15,7 +15,7 @@
     try {
       const value = JSON.parse(record);
       if (
-        value.version !== 1 ||
+        value.version !== 2 ||
         typeof value.address !== "string" ||
         !value.address.startsWith("tc") ||
         typeof value.token !== "string" ||
@@ -55,7 +55,7 @@
     <p class="muted">
       Start a local development agent and paste its connection record below.
     </p>
-    <CommandBlock command="webssh serve --dev-token --json ." />
+    <CommandBlock command="webssh serve --backend ephemeral --dev-token --json ." />
     <form onsubmit={connect}>
       <label for="record">Connection record</label>
       <textarea

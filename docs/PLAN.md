@@ -1,6 +1,6 @@
 # WebSSH completion plan
 
-Status: proposed implementation order, based on the repository as of 2026-11-14. This plan defines the essential first release; it does not claim the remaining features are implemented.
+Status: updated 2026-11-15. Milestones 3 and 4 are complete and deployed. Milestones 5 and 6 and the release gates below remain open; completing the implementation does not imply live browser acceptance has been verified.
 
 ## Target outcome
 
@@ -12,13 +12,13 @@ Keep the session route entirely terminal-based, using the existing Tokyo Night M
 
 | Component | Implemented | Essential gap |
 | --- | --- | --- |
-| Web terminal | xterm, addons, theme, terminal-only route, WASM loading | Local development handoff works; production session URL remains |
-| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership | Local browser/relay/agent acceptance passes; production delivery remains |
-| Agent | Tailcat listener, HMAC grant verification, optional dev token, workspace PTY, resize/output/exit, cleanup | Sessions die on disconnect; no persistence |
-| Protocol | Protobuf schema, generated Go/TS codecs, framing and shared fixtures | Session identities and reattachment |
-| CLI | Inline configuration, TOML settings, `pair`, grant-authenticated `serve` | Browser session URL after serve registers |
-| State service | SQLite Durable Object migrations, owner/pairing records, grant minting | Agent heartbeat and session announcement |
-| Deployment | Workspace and Worker configuration | Verified WASM asset delivery, relay plan, CI and release artifacts |
+| Web terminal | xterm, addons, theme, terminal-only route, WASM loading, authenticated production session URLs | Live browser reload/sleep acceptance remains to be verified |
+| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership, fresh-grant reconnect and liveness deadlines | Deployed browser/relay outage acceptance remains a release gate |
+| Agent | Tailcat listener, HMAC grants, tmux session manager, stable IDs, ownership-checked recovery, explicit ephemeral backend | Remaining access/lifecycle hardening in milestone 5 |
+| Protocol | Typed Protobuf v2, generated Go/TS codecs, framing, shared fixtures, capabilities, detach/terminate and lifecycle messages | Compatibility and generation-drift CI in milestone 6 |
+| CLI | Inline configuration, TOML settings, `pair`, registered/announced `serve`, opaque browser URL, persistent restart recovery | Versioned distribution and clean-machine installation in milestone 6 |
+| State service | SQLite migrations, owner/pairing records, grants, run announcements/heartbeats, generation fences and durable termination requests | Remaining lifecycle/storage controls in milestone 5 |
+| Deployment | Web/state Workers deployed, WASM built with web releases, production route/asset smoke checks | Sustained relay/browser acceptance, CI and release artifacts in milestone 6 |
 
 The original architecture notes contain future-tense statements that predate these implementations. Use the code and current protocol/transport documents for implementation status. READMEs remain user-owned.
 
@@ -55,6 +55,8 @@ The original architecture notes contain future-tense statements that predate the
 
 ## 3. Deliver the normal CLI-to-browser flow
 
+**Status: complete and deployed (2026-11-15).** See [CLI-to-browser flow](cli-browser-flow.md).
+
 Depends on milestones 1 and 2.
 
 - Have `serve <path>` load configuration, register/announce the running agent, create a session record, and print a browser URL containing only the opaque session ID.
@@ -68,7 +70,9 @@ Depends on milestones 1 and 2.
 
 ## 4. Preserve remote work and reconnect
 
-**Priority: essential for the stated durable-session experience.** Current disconnect-kills-shell behavior must change deliberately.
+**Status: complete and deployed (2026-11-15).** See [durable sessions](durable-sessions.md).
+
+**Priority: essential for the stated durable-session experience.** Tmux is now the default persistent backend; disconnect-kills-shell behavior remains only in the explicit ephemeral backend.
 
 - Introduce stable agent-side session IDs and a session manager, separate from transport connection IDs.
 - Use tmux as the first persistent process backend. Check availability and report setup instructions; do not install it silently. Keep direct PTYs as an explicitly ephemeral option.
@@ -139,4 +143,12 @@ Proceed milestone by milestone with reviewable commits and update this plan as d
 
 **Milestone 1 completed locally:** development-only credential handoff, real terminal route, explicit mocks and browser–DERP–agent acceptance test are implemented. See [browser session](browser-session.md).
 
-**Milestone 2 implemented:** GitHub OAuth with HttpOnly cookies, Durable Object owner/pairing records, CLI `webssh pair`, HMAC-signed attach grants, and grant verification before PTY start. See [identity and pairing](identity-pairing.md). **Next implementation task:** milestone 3 CLI-to-browser session flow (register the running agent, print `/s/<id>`, resolve grants for the owner). GitHub OAuth app credentials must be set on the Worker before public pairing works.
+**Milestone 2 implemented:** GitHub OAuth with HttpOnly cookies, Durable Object owner/pairing records, CLI `webssh pair`, HMAC-signed attach grants, and grant verification before PTY start. See [identity and pairing](identity-pairing.md). GitHub OAuth app credentials must be set on the Worker before public pairing works.
+
+**Milestone 3 complete and deployed:** serve registers and announces the agent, prints an opaque session URL, and supports the authenticated machine/session dashboard and no-store descriptor/grant resolution. Heartbeats, bounded retries, expiry, startup cleanup, and offline messages are implemented. See [CLI-to-browser flow](cli-browser-flow.md).
+
+**Milestone 4 complete and deployed:** stable agent-side sessions, tmux persistence, ownership-checked restart recovery, typed protocol v2, distinct detach/terminate operations, bounded fresh-authorization reconnect, and a single-controller busy policy are implemented. Native tmux tests cover running-command preservation through detach, abrupt transport loss, a sleeping controller, restart, redraw, explicit termination, and rejection of unrelated sessions. State and browser-side tests cover generation fences, stale/revoked credentials, queued termination, retry cancellation, and no uncertain-input replay. See [durable sessions](durable-sessions.md).
+
+**Verification limit:** live signed-in browser reload/sleep and deployed relay-outage acceptance remain unverified because no browser was available. Keep these checks in the release gates; automated/native tests and production route/asset smoke checks do not replace them.
+
+**Next implementation task:** milestone 5, complete access and lifecycle controls.

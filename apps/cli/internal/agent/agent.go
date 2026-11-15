@@ -20,18 +20,21 @@ import (
 )
 
 type Options struct {
-	Workspace        string
-	Shell            string
-	Token            string // Development per-run capability; empty when grants-only. Never log it.
-	Grants           *GrantVerifier
-	SessionID        string
-	AllowRunSessions bool // Additional sessions are authorized against this run by CheckAccess.
-	CheckAccess      func(context.Context, string, string) error
-	AllowDevToken    bool // Local/dev attach using Token; production paired agents leave this false.
-	Port             int  // Zero selects the protocol's default virtual port.
-	MaxConnections   int  // Includes connections still authenticating; defaults to 8.
-	DERPMapURL       string
-	Region           *tailcfg.DERPRegion // Optional explicit relay, useful for local integration.
+	ClientIdleTimeout time.Duration // Controller liveness deadline; default 20 seconds.
+	Backend           string        // tmux (durable) or explicitly ephemeral.
+	Manager           *SessionManager
+	Workspace         string
+	Shell             string
+	Token             string // Development per-run capability; empty when grants-only. Never log it.
+	Grants            *GrantVerifier
+	SessionID         string
+	AllowRunSessions  bool // Additional sessions are authorized against this run by CheckAccess.
+	CheckAccess       func(context.Context, string, string) error
+	AllowDevToken     bool // Local/dev attach using Token; production paired agents leave this false.
+	Port              int  // Zero selects the protocol's default virtual port.
+	MaxConnections    int  // Includes connections still authenticating; defaults to 8.
+	DERPMapURL        string
+	Region            *tailcfg.DERPRegion // Optional explicit relay, useful for local integration.
 }
 
 type Info struct {
@@ -46,7 +49,7 @@ type Info struct {
 type Agent struct {
 	opts         Options
 	controllerMu sync.Mutex
-	controlled   bool
+	controlled   map[string]bool
 }
 
 func New(opts Options) (*Agent, error) {
@@ -75,6 +78,21 @@ func New(opts Options) (*Agent, error) {
 	opts.Shell, err = filepath.Abs(shell)
 	if err != nil {
 		return nil, err
+	}
+	if opts.Backend == "" {
+		opts.Backend = "tmux"
+	}
+	if opts.Backend != "tmux" && opts.Backend != "ephemeral" {
+		return nil, errors.New("backend must be tmux or ephemeral")
+	}
+	if opts.Backend == "tmux" && opts.Manager == nil {
+		return nil, errors.New("durable backend requires a session manager")
+	}
+	if opts.SessionID == "" {
+		opts.SessionID, err = randomHandle()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if opts.Token != "" && !opts.AllowDevToken {
 		return nil, errors.New("development token must be explicitly enabled")
@@ -109,7 +127,10 @@ func New(opts Options) (*Agent, error) {
 	if opts.MaxConnections < 1 || opts.MaxConnections > 128 {
 		return nil, errors.New("max connections must be between 1 and 128")
 	}
-	return &Agent{opts: opts}, nil
+	if opts.ClientIdleTimeout <= 0 {
+		opts.ClientIdleTimeout = 20 * time.Second
+	}
+	return &Agent{opts: opts, controlled: map[string]bool{}}, nil
 }
 
 // Run creates an ephemeral encrypted listener. ready receives credentials once

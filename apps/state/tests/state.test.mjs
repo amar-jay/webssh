@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 const source = await build({stdin:{contents:`import { WebSSHState as Base } from './src/index.ts';
-export class WebSSHState extends Base { async testCall(method,args) { try { return {ok:true,value:await this[method](...args)}; } catch(e) { return {ok:false,error:e.message}; } } async ageRun(id,age) { this.ctx.storage.sql.exec('UPDATE agent_runs SET last_seen_at = ? WHERE run_id = ?',Date.now()-age,id); } async expire(code) { this.ctx.storage.sql.exec('UPDATE pairing_attempts SET expires_at = 0 WHERE code = ?',code); } }
+export class WebSSHState extends Base { async ageEnd(id,age) { this.ctx.storage.sql.exec('UPDATE terminal_sessions SET ended_at = ? WHERE terminal_session_id = ?',Date.now()-age,id); await this.alarm(); } async testCall(method,args) { try { return {ok:true,value:await this[method](...args)}; } catch(e) { return {ok:false,error:e.message}; } } async ageRun(id,age) { this.ctx.storage.sql.exec('UPDATE agent_runs SET last_seen_at = ? WHERE run_id = ?',Date.now()-age,id); } async expire(code) { this.ctx.storage.sql.exec('UPDATE pairing_attempts SET expires_at = 0 WHERE code = ?',code); } }
 export default { fetch(){ return new Response('test'); } };`,resolveDir:process.cwd(),sourcefile:'test-worker.ts'},bundle:true,format:'esm',platform:'browser',external:['cloudflare:workers'],write:false});
 test('SQLite DO: owner isolation, pairing races/expiry, single-use grants and revocation', async () => {
  const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
@@ -106,4 +106,46 @@ test('agent runs: authenticated announcement, owner-only resolution, lifecycle a
   await owner.agentRun('alice',agent.agentId,agent.agentToken,{operation:'end',runId:failedRun});
   assert.equal((await owner.getTerminalSession('alice',failedRun)).status,'ended');
  } finally {await mf.dispose();}
+});
+
+test('durable sessions detach, fence stale grants on restart, and reconcile explicit termination',async()=>{
+ const mf=new Miniflare({modules:true,script:source.outputFiles[0].text,compatibilityDate:'2026-08-06',durableObjects:{STATE:{className:'WebSSHState',useSQLite:true}}});
+ try{
+  const ns=await mf.getDurableObjectNamespace('STATE');const owner=ns.get(ns.idFromName('owner:durable'));
+  const agent=await owner.registerAgent('durable','box');const browser=await owner.createBrowserSession('durable');
+  const runId='durable_run_123456789';let generation='generation_1234567890';
+  const update=(operation,rest={})=>owner.agentRun('durable',agent.agentId,agent.agentToken,{operation,runId,backend:'tmux',generation,...rest});
+  await update('start',{machineName:'box',workspaceLabel:'project'});
+  await update('announce',{address:'tcPersistentAddress1234',port:2222});
+  const first=await owner.resolveSession('durable',runId,browser.sessionId);let nonce=first.grant.split('.')[3];
+  assert.equal(first.backend,'tmux');
+  await owner.agentSession('durable',agent.agentId,agent.agentToken,runId,nonce,runId,generation);
+  await owner.agentSession('durable',agent.agentId,agent.agentToken,runId,'detach:'+nonce,runId,generation);
+  let row=await owner.getTerminalSession('durable',runId);assert.equal(row.status,'connecting');assert.equal(row.endedAt,null);
+  const stale=await owner.resolveSession('durable',runId,browser.sessionId);nonce=stale.grant.split('.')[3];
+  const previous=generation;generation='generation_ABCDEFGHIJ';
+  const restarted=await update('start',{machineName:'box',workspaceLabel:'project',recoveredIds:[runId]});
+  assert.equal(restarted.sessionId,runId);
+  await update('announce',{address:'tcNewPersistentAddress1234',port:2222});
+  await rpcReject(owner,'agentSession',['durable',agent.agentId,agent.agentToken,runId,nonce,runId,generation],/unauthorized/);
+  await rpcReject(owner,'agentRun',['durable',agent.agentId,agent.agentToken,{operation:'heartbeat',runId,backend:'tmux',generation:previous}],/unauthorized/);
+  const current=await owner.resolveSession('durable',runId,browser.sessionId);nonce=current.grant.split('.')[3];
+  await owner.agentSession('durable',agent.agentId,agent.agentToken,runId,nonce,runId,generation);
+  await update('offline');
+  row=await owner.getTerminalSession('durable',runId);assert.equal(row.status,'offline');assert.equal(row.endedAt,null);
+  assert.equal(await owner.endTerminalSession('durable',runId),true);
+  await owner.ageEnd(runId,8*86400000);
+  row=await owner.getTerminalSession('durable',runId);assert.equal(row.terminationRequested,true);
+  generation='generation_KLMNOPQRST';
+  const recovery=await update('start',{machineName:'box',workspaceLabel:'project',recoveredIds:[runId]});
+  assert(recovery.terminateIds.includes(runId));assert.notEqual(recovery.sessionId,runId);
+  await rpcReject(owner,'resolveSession',['durable',runId,browser.sessionId],/session_ended/);
+  await update('announce',{address:'tcLastPersistentAddress1234',port:2222,terminatedIds:[runId]});
+  assert.equal((await owner.getTerminalSession('durable',runId)).terminationRequested,false);
+  const next=recovery.sessionId;
+  const nextConnection=await owner.resolveSession('durable',next,browser.sessionId);const nextNonce=nextConnection.grant.split('.')[3];
+  await owner.agentSession('durable',agent.agentId,agent.agentToken,next,nextNonce,runId,generation);
+  await owner.revokeAgent('durable',agent.agentId);
+  await rpcReject(owner,'agentSession',['durable',agent.agentId,agent.agentToken,next,'check:'+nextNonce,runId,generation],/unauthorized/);
+ }finally{await mf.dispose()}
 });

@@ -35,6 +35,8 @@ func serveCommand() *cli.Command {
 			},
 		},
 		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "backend", Value: "tmux", Usage: "process backend: tmux (persistent) or ephemeral (disconnect kills shell)"},
+			&cli.StringFlag{Name: "state-dir", Usage: "private durable session state directory (default: beside credentials)"},
 			&cli.StringFlag{
 				Name:  "config",
 				Usage: "configuration file (default: ~/.webssh/config.toml)",
@@ -94,6 +96,7 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 	opts := agent.Options{
+		Backend:        cmd.String("backend"),
 		Workspace:      workspace,
 		Shell:          cfg.Shell,
 		Port:           cmd.Int("port"),
@@ -104,6 +107,8 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	devToken := cmd.Bool("dev-token")
 	var control *pairing.Client
 	var runID string
+	var generation string
+	var browserSessionID string
 	switch {
 	case credErr == nil:
 		control, err = pairing.NewClient(creds.Origin)
@@ -117,7 +122,7 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		opts.SessionID = runID
 		opts.AllowRunSessions = true
 		opts.CheckAccess = func(ctx context.Context, id, nonce string) error {
-			return control.RunAccess(ctx, creds, runID, id, nonce)
+			return control.RunAccess(ctx, creds, runID, id, nonce, generation)
 		}
 		opts.Grants = agent.NewGrantVerifier(creds.AgentID, creds.GrantKey)
 		if devToken {
@@ -136,6 +141,57 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	default:
 		return credErr
 	}
+	if opts.Backend == "tmux" {
+		stateDir := cmd.String("state-dir")
+		if stateDir == "" {
+			stateDir = filepath.Join(filepath.Dir(credFile), "sessions")
+		}
+		scope := fmt.Sprintf("%s\n%s\n%s\n%s\n%s", creds.Origin, creds.OwnerID, creds.AgentID, workspace, cfg.Shell)
+		manager, openErr := agent.OpenSessionManager(stateDir, scope)
+		if openErr != nil {
+			return openErr
+		}
+		defer manager.Close()
+		opts.Manager = manager
+		runID = manager.RunID()
+		opts.SessionID = runID
+		generation, err = newDevToken()
+		if err != nil {
+			return err
+		}
+	}
+	browserSessionID = runID
+	var pendingTerminated []string
+	syncRun := func(c context.Context, update pairing.RunUpdate) error {
+		update.TerminatedIDs = pendingTerminated
+		update.Generation = generation
+		update.Backend = opts.Backend
+		if opts.Manager != nil {
+			update.RecoveredIDs, update.EndedIDs = opts.Manager.Snapshot()
+			for _, id := range update.EndedIDs {
+				if err := opts.Manager.Terminate(id); err != nil {
+					return err
+				}
+			}
+		}
+		result, err := control.SyncRun(c, creds, update)
+		if err != nil {
+			return err
+		}
+		pendingTerminated = nil
+		if update.Operation == "start" && result.SessionID != "" {
+			browserSessionID = result.SessionID
+		}
+		if opts.Manager != nil {
+			for _, id := range result.TerminateIDs {
+				if err := opts.Manager.Terminate(id); err != nil {
+					return err
+				}
+				pendingTerminated = append(pendingTerminated, id)
+			}
+		}
+		return nil
+	}
 	server, err := agent.New(opts)
 	if err != nil {
 		return err
@@ -152,11 +208,16 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 			cleanup, done := context.WithTimeout(context.Background(), 4*time.Second)
 			defer done()
 			_ = retryControl(cleanup, func(c context.Context) error {
-				return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "end", RunID: runID})
+				return syncRun(c, pairing.RunUpdate{Operation: func() string {
+					if opts.Backend == "tmux" {
+						return "offline"
+					}
+					return "end"
+				}(), RunID: runID})
 			})
 		}()
 		err = retryControl(ctx, func(c context.Context) error {
-			return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "start", RunID: runID, MachineName: cfg.MachineName, WorkspaceLabel: filepath.Base(workspace)})
+			return syncRun(c, pairing.RunUpdate{Operation: "start", RunID: runID, MachineName: cfg.MachineName, WorkspaceLabel: filepath.Base(workspace)})
 		})
 		if err != nil {
 			return errors.New("could not register agent run; check your connection and pairing")
@@ -165,27 +226,27 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 	err = server.Run(ctx, func(info agent.Info) error {
 		if control != nil {
 			if err := retryControl(ctx, func(c context.Context) error {
-				return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "announce", RunID: runID, Address: info.Address, Port: info.Port, DERPMapURL: opts.DERPMapURL})
+				return syncRun(c, pairing.RunUpdate{Operation: "announce", RunID: runID, Address: info.Address, Port: info.Port, DERPMapURL: opts.DERPMapURL})
 			}); err != nil {
 				return errors.New("could not announce agent listener; no browser session was opened")
 			}
 			heartbeatStarted = true
 			go func() {
 				err := heartbeatRun(ctx, 10*time.Second, func(c context.Context) error {
-					return control.UpdateRun(c, creds, pairing.RunUpdate{Operation: "heartbeat", RunID: runID})
+					return syncRun(c, pairing.RunUpdate{Operation: "heartbeat", RunID: runID})
 				})
 				heartbeatDone <- err
 				if err != nil {
 					cancel()
 				}
 			}()
-			browserURL := control.Origin + "/s/" + runID
+			browserURL := control.Origin + "/s/" + browserSessionID
 			if cmd.Bool("json") && !devToken {
 				return json.NewEncoder(os.Stdout).Encode(struct {
 					Version   int    `json:"version"`
 					SessionID string `json:"sessionId"`
 					URL       string `json:"url"`
-				}{protocol.Version, runID, browserURL})
+				}{protocol.Version, browserSessionID, browserURL})
 			}
 			if !devToken {
 				_, err := fmt.Fprintf(os.Stdout, "WebSSH · %s\nWorkspace: %s\n\nOpen in your browser:\n%s\n\nKeep this command running · Ctrl+C to stop\n", cfg.MachineName, info.Workspace, browserURL)

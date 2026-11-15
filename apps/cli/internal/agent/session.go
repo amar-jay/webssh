@@ -30,7 +30,9 @@ func (w *writer) send(m protocol.Message) error {
 	}
 	return protocol.Write(w.conn, m)
 }
-func (w *writer) fail(code string) { _ = w.send(protocol.Message{Type: "error", Error: code}) }
+func (w *writer) fail(code string) {
+	_ = w.send(protocol.Message{Type: "error", Error: code, Retryable: code == "session_busy"})
+}
 
 func (a *Agent) authorize(token string) bool {
 	// Grant-shaped tokens never fall back to the development per-run secret.
@@ -57,7 +59,7 @@ func (a *Agent) handle(conn net.Conn) {
 		out.fail("invalid_handshake")
 		return
 	}
-	if hello.Type != "attach" || hello.Version != protocol.Version {
+	if (hello.Type != "attach" && hello.Type != "create") || hello.Version != protocol.Version {
 		out.fail("unsupported_protocol")
 		return
 	}
@@ -74,17 +76,60 @@ func (a *Agent) handle(conn net.Conn) {
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	if a.opts.Grants != nil {
-		a.controllerMu.Lock()
-		if a.controlled {
-			a.controllerMu.Unlock()
+	sessionID := hello.SessionID
+	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
+		parts := strings.Split(hello.Token, ".")
+		if len(parts) != 5 {
+			out.fail("unauthorized")
+			return
+		}
+		if sessionID != "" && sessionID != parts[1] {
+			out.fail("unauthorized")
+			return
+		}
+		sessionID = parts[1]
+	}
+	if sessionID == "" {
+		sessionID = a.opts.SessionID
+	}
+	if !sessionHandle.MatchString(sessionID) {
+		out.fail("invalid_attach")
+		return
+	}
+	caps := []string{"terminate"}
+	if a.opts.Backend == "tmux" {
+		caps = []string{"persistence", "reconnect", "terminate"}
+	}
+	for _, required := range hello.Capabilities {
+		found := false
+		for _, cap := range caps {
+			if required == cap {
+				found = true
+			}
+		}
+		if !found {
+			out.fail("capability_mismatch")
+			return
+		}
+	}
+	a.controllerMu.Lock()
+	if a.controlled[sessionID] {
+		a.controllerMu.Unlock()
+		out.fail("session_busy")
+		return
+	}
+	a.controlled[sessionID] = true
+	a.controllerMu.Unlock()
+	defer func() { a.controllerMu.Lock(); delete(a.controlled, sessionID); a.controllerMu.Unlock() }()
+	if a.opts.Backend == "tmux" {
+		release, err := a.opts.Manager.Acquire(sessionID)
+		if err != nil {
 			out.fail("session_busy")
 			return
 		}
-		a.controlled = true
-		a.controllerMu.Unlock()
-		defer func() { a.controllerMu.Lock(); a.controlled = false; a.controllerMu.Unlock() }()
+		defer release()
 	}
+	ended := false
 	if !a.authorize(hello.Token) {
 		out.fail("unauthorized")
 		return
@@ -93,7 +138,7 @@ func (a *Agent) handle(conn net.Conn) {
 	// attempt never consumes a grant or changes the active lease.
 	if a.opts.Grants != nil && strings.HasPrefix(hello.Token, "v1.") {
 		parts := strings.Split(hello.Token, ".")
-		sessionID, nonce := parts[1], parts[3]
+		nonce := parts[3]
 		accessCtx, accessCancel := context.WithCancel(context.Background())
 		stopped := make(chan struct{})
 		go func() {
@@ -120,12 +165,30 @@ func (a *Agent) handle(conn net.Conn) {
 			<-stopped
 			release, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
-			_ = a.opts.CheckAccess(release, sessionID, "release:"+nonce)
+			operation := "release:"
+			if a.opts.Backend == "tmux" {
+				operation = "detach:"
+				if ended {
+					operation = "ended:"
+				}
+			}
+			_ = a.opts.CheckAccess(release, sessionID, operation+nonce)
 		}()
 	}
-	child, err := startProcess(a.opts, hello.Term, hello.Cols, hello.Rows)
+	var child *process
+	if a.opts.Backend == "tmux" {
+		child, err = a.opts.Manager.Attach(sessionID, hello.Type == "create", a.opts, hello.Term, hello.Cols, hello.Rows)
+	} else {
+		child, err = startProcess(a.opts, hello.Term, hello.Cols, hello.Rows)
+	}
 	if err != nil {
-		out.fail("shell_start_failed")
+		code := err.Error()
+		switch code {
+		case "session_ended", "session_not_found", "backend_unavailable":
+			out.fail(code)
+		default:
+			out.fail("shell_start_failed")
+		}
 		return
 	}
 	var waitErr error
@@ -133,7 +196,7 @@ func (a *Agent) handle(conn net.Conn) {
 	go func() { waitErr = child.cmd.Wait(); close(waitDone) }()
 	// Always close the PTY, kill live process groups, and reap the shell.
 	defer func() { child.stop(); <-waitDone }()
-	if err := out.send(protocol.Message{Type: "ready", Version: protocol.Version}); err != nil {
+	if err := out.send(protocol.Message{Type: "ready", Version: protocol.Version, SessionID: sessionID, Backend: a.opts.Backend, Capabilities: caps}); err != nil {
 		return
 	}
 
@@ -157,17 +220,23 @@ func (a *Agent) handle(conn net.Conn) {
 	inputDone := make(chan error, 1)
 	go func() {
 		for {
+			_ = conn.SetReadDeadline(time.Now().Add(a.opts.ClientIdleTimeout))
 			m, err := protocol.Read(conn)
 			if err != nil {
 				inputDone <- err
 				return
 			}
 			// Only terminal input, resize and detach are legal after attachment.
-			if m.Version != 0 || m.Token != "" || m.Term != "" || m.Error != "" || m.Code != 0 {
+			if m.Version != 0 || m.Token != "" || m.Term != "" || m.Error != "" || m.Code != 0 || m.SessionID != "" || len(m.Capabilities) > 0 || m.Backend != "" {
 				inputDone <- errors.New("invalid_message")
 				return
 			}
 			switch m.Type {
+			case "ping":
+				if err := out.send(protocol.Message{Type: "pong"}); err != nil {
+					inputDone <- err
+					return
+				}
 			case "input":
 				if m.Cols != 0 || m.Rows != 0 {
 					inputDone <- errors.New("invalid_message")
@@ -186,12 +255,16 @@ func (a *Agent) handle(conn net.Conn) {
 					inputDone <- err
 					return
 				}
-			case "detach":
+			case "detach", "terminate":
 				if m.Cols != 0 || m.Rows != 0 || len(m.Data) != 0 {
 					inputDone <- errors.New("invalid_message")
 					return
 				}
-				inputDone <- io.EOF
+				if m.Type == "terminate" {
+					inputDone <- errors.New("terminate")
+				} else {
+					inputDone <- errors.New("detach")
+				}
 				return
 			default:
 				inputDone <- errors.New("invalid_message")
@@ -207,8 +280,48 @@ func (a *Agent) handle(conn net.Conn) {
 		<-inputDone
 		<-outputDone
 	}()
+	type processEnd struct {
+		code  int
+		known bool
+		err   error
+	}
+	paneEnd := make(chan processEnd, 1)
+	watchCtx, watchCancel := context.WithCancel(context.Background())
+	defer watchCancel()
+	if a.opts.Backend == "tmux" {
+		go func() {
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-watchCtx.Done():
+					return
+				case <-ticker.C:
+					dead, code, known, err := a.opts.Manager.State(sessionID)
+					if dead || err != nil {
+						paneEnd <- processEnd{code, known, err}
+						return
+					}
+				}
+			}
+		}()
+	}
 	select {
 	case <-waitDone:
+		if a.opts.Backend == "tmux" {
+			dead, code, known, stateErr := a.opts.Manager.State(sessionID)
+			if stateErr != nil {
+				out.fail("backend_unavailable")
+			} else if dead {
+				ended = true
+				_ = a.opts.Manager.Terminate(sessionID)
+				_ = out.send(protocol.Message{Type: "exit", Code: code, CodeKnown: known})
+			} else {
+				_ = out.send(protocol.Message{Type: "detached"})
+			}
+			return
+		}
+		ended = true
 		// Drain normal PTY output before the exit frame. Background processes may
 		// retain the slave; bound the drain rather than waiting forever for EOF.
 		select {
@@ -227,15 +340,45 @@ func (a *Agent) handle(conn net.Conn) {
 				code = 128
 			}
 		}
-		_ = out.send(protocol.Message{Type: "exit", Code: code})
+		_ = out.send(protocol.Message{Type: "exit", Code: code, CodeKnown: true})
+	case result := <-paneEnd:
+		if result.err != nil {
+			out.fail("backend_unavailable")
+			return
+		}
+		ended = true
+		_ = a.opts.Manager.Terminate(sessionID)
+		_ = out.send(protocol.Message{Type: "exit", Code: result.code, CodeKnown: result.known})
 	case err := <-inputDone:
 		inputDone <- err
+		if err != nil && err.Error() == "terminate" {
+			if a.opts.Backend == "tmux" {
+				if killErr := a.opts.Manager.Terminate(sessionID); killErr != nil {
+					out.fail("backend_unavailable")
+					return
+				}
+			}
+			ended = true
+			_ = out.send(protocol.Message{Type: "terminated"})
+			return
+		}
+		if err != nil && err.Error() == "detach" {
+			_ = out.send(protocol.Message{Type: "detached"})
+			return
+		}
+		if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+			return
+		}
 		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 			out.fail("invalid_session_message")
 		}
 	case err := <-outputDone:
 		outputDone <- err
+		if a.opts.Backend == "tmux" {
+			return
+		}
 		if err == nil {
+			ended = true
 			// EOF can precede Wait's return by a scheduling turn.
 			select {
 			case <-waitDone:
@@ -243,7 +386,7 @@ func (a *Agent) handle(conn net.Conn) {
 				if code < 0 {
 					code = 128
 				}
-				_ = out.send(protocol.Message{Type: "exit", Code: code})
+				_ = out.send(protocol.Message{Type: "exit", Code: code, CodeKnown: true})
 			case <-time.After(time.Second):
 				out.fail("shell_io_closed")
 			}

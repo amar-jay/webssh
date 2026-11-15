@@ -10,7 +10,7 @@ import (
 )
 
 func TestFixtures(t *testing.T) {
-	data, err := os.ReadFile("fixtures/v1.json")
+	data, err := os.ReadFile("fixtures/v2.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,5 +55,22 @@ func TestRejectMalformed(t *testing.T) {
 	var b bytes.Buffer
 	if err := Write(&b, Message{Type: "input", Data: make([]byte, MaxDataSize+1)}); err == nil {
 		t.Fatal("oversized data accepted")
+	}
+}
+
+func TestV1ReservedFieldsAreRejected(t *testing.T) {
+	data, err := os.ReadFile("fixtures/v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures []struct{ Hex string }
+	if err = json.Unmarshal(data, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures {
+		wire, _ := hex.DecodeString(fixture.Hex)
+		if _, err = Read(bytes.NewReader(wire)); err == nil {
+			t.Fatal("v1 frame accepted as v2")
+		}
 	}
 }

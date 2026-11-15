@@ -7,59 +7,219 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "webssh.protocol.v1";
+export const protobufPackage = "webssh.protocol.v2";
 
 export const protobufFileName = "terminal.proto";
 
-/**
- * One envelope per length-prefixed TCP frame. The agent validates which fields
- * are legal for each type and direction. Never reuse field numbers.
- */
+export const Capability = {
+  CAPABILITY_UNSPECIFIED: 0,
+  PERSISTENCE: 1,
+  RECONNECT: 2,
+  TERMINATE: 3,
+  UNRECOGNIZED: -1,
+} as const;
+
+export type Capability = typeof Capability[keyof typeof Capability];
+
+export namespace Capability {
+  export type CAPABILITY_UNSPECIFIED = typeof Capability.CAPABILITY_UNSPECIFIED;
+  export type PERSISTENCE = typeof Capability.PERSISTENCE;
+  export type RECONNECT = typeof Capability.RECONNECT;
+  export type TERMINATE = typeof Capability.TERMINATE;
+  export type UNRECOGNIZED = typeof Capability.UNRECOGNIZED;
+}
+
+export const Backend = { BACKEND_UNSPECIFIED: 0, TMUX: 1, EPHEMERAL: 2, UNRECOGNIZED: -1 } as const;
+
+export type Backend = typeof Backend[keyof typeof Backend];
+
+export namespace Backend {
+  export type BACKEND_UNSPECIFIED = typeof Backend.BACKEND_UNSPECIFIED;
+  export type TMUX = typeof Backend.TMUX;
+  export type EPHEMERAL = typeof Backend.EPHEMERAL;
+  export type UNRECOGNIZED = typeof Backend.UNRECOGNIZED;
+}
+
+/** Protocol v1 used untyped fields 1..9. They must never be reused. */
 export interface TerminalMessage {
-  /** attach, ready, input, output, resize, detach, exit, error */
-  type: string;
   version: number;
-  token: string;
+  payload:
+    | { $case: "open"; open: OpenRequest }
+    | { $case: "ready"; ready: Ready }
+    | { $case: "input"; input: Bytes }
+    | { $case: "output"; output: Bytes }
+    | { $case: "resize"; resize: Size }
+    | { $case: "detach"; detach: Detach }
+    | { $case: "terminate"; terminate: Terminate }
+    | { $case: "lifecycle"; lifecycle: Lifecycle }
+    | { $case: "failure"; failure: Failure }
+    | { $case: "ping"; ping: Ping }
+    | { $case: "pong"; pong: Pong }
+    | undefined;
+}
+
+export interface Size {
   cols: number;
   rows: number;
+}
+
+export interface OpenRequest {
+  sessionId: string;
+  token: string;
+  size: Size | undefined;
   term: string;
+  mode: OpenRequest_Mode;
+  capabilities: Capability[];
+}
+
+export const OpenRequest_Mode = {
+  MODE_UNSPECIFIED: 0,
+  CREATE_OR_ATTACH: 1,
+  ATTACH_EXISTING: 2,
+  UNRECOGNIZED: -1,
+} as const;
+
+export type OpenRequest_Mode = typeof OpenRequest_Mode[keyof typeof OpenRequest_Mode];
+
+export namespace OpenRequest_Mode {
+  export type MODE_UNSPECIFIED = typeof OpenRequest_Mode.MODE_UNSPECIFIED;
+  export type CREATE_OR_ATTACH = typeof OpenRequest_Mode.CREATE_OR_ATTACH;
+  export type ATTACH_EXISTING = typeof OpenRequest_Mode.ATTACH_EXISTING;
+  export type UNRECOGNIZED = typeof OpenRequest_Mode.UNRECOGNIZED;
+}
+
+export interface Ready {
+  sessionId: string;
+  backend: Backend;
+  capabilities: Capability[];
+}
+
+export interface Bytes {
   data: Uint8Array;
-  code: number;
-  error: string;
+}
+
+export interface Detach {
+}
+
+export interface Terminate {
+}
+
+export interface Lifecycle {
+  state: Lifecycle_State;
+  exitCode: number;
+  exitCodeKnown: boolean;
+}
+
+export const Lifecycle_State = {
+  STATE_UNSPECIFIED: 0,
+  DETACHED: 1,
+  ENDED: 2,
+  TERMINATED: 3,
+  UNRECOGNIZED: -1,
+} as const;
+
+export type Lifecycle_State = typeof Lifecycle_State[keyof typeof Lifecycle_State];
+
+export namespace Lifecycle_State {
+  export type STATE_UNSPECIFIED = typeof Lifecycle_State.STATE_UNSPECIFIED;
+  export type DETACHED = typeof Lifecycle_State.DETACHED;
+  export type ENDED = typeof Lifecycle_State.ENDED;
+  export type TERMINATED = typeof Lifecycle_State.TERMINATED;
+  export type UNRECOGNIZED = typeof Lifecycle_State.UNRECOGNIZED;
+}
+
+export interface Failure {
+  code: Failure_Code;
+  retryable: boolean;
+}
+
+export const Failure_Code = {
+  CODE_UNSPECIFIED: 0,
+  UNAUTHORIZED: 1,
+  SESSION_BUSY: 2,
+  SESSION_ENDED: 3,
+  SESSION_NOT_FOUND: 4,
+  INVALID_HANDSHAKE: 5,
+  UNSUPPORTED_PROTOCOL: 6,
+  INVALID_ATTACH: 7,
+  INVALID_TERMINAL: 8,
+  SHELL_START_FAILED: 9,
+  INVALID_SESSION_MESSAGE: 10,
+  SHELL_IO_CLOSED: 11,
+  BACKEND_UNAVAILABLE: 12,
+  CAPABILITY_MISMATCH: 13,
+  UNRECOGNIZED: -1,
+} as const;
+
+export type Failure_Code = typeof Failure_Code[keyof typeof Failure_Code];
+
+export namespace Failure_Code {
+  export type CODE_UNSPECIFIED = typeof Failure_Code.CODE_UNSPECIFIED;
+  export type UNAUTHORIZED = typeof Failure_Code.UNAUTHORIZED;
+  export type SESSION_BUSY = typeof Failure_Code.SESSION_BUSY;
+  export type SESSION_ENDED = typeof Failure_Code.SESSION_ENDED;
+  export type SESSION_NOT_FOUND = typeof Failure_Code.SESSION_NOT_FOUND;
+  export type INVALID_HANDSHAKE = typeof Failure_Code.INVALID_HANDSHAKE;
+  export type UNSUPPORTED_PROTOCOL = typeof Failure_Code.UNSUPPORTED_PROTOCOL;
+  export type INVALID_ATTACH = typeof Failure_Code.INVALID_ATTACH;
+  export type INVALID_TERMINAL = typeof Failure_Code.INVALID_TERMINAL;
+  export type SHELL_START_FAILED = typeof Failure_Code.SHELL_START_FAILED;
+  export type INVALID_SESSION_MESSAGE = typeof Failure_Code.INVALID_SESSION_MESSAGE;
+  export type SHELL_IO_CLOSED = typeof Failure_Code.SHELL_IO_CLOSED;
+  export type BACKEND_UNAVAILABLE = typeof Failure_Code.BACKEND_UNAVAILABLE;
+  export type CAPABILITY_MISMATCH = typeof Failure_Code.CAPABILITY_MISMATCH;
+  export type UNRECOGNIZED = typeof Failure_Code.UNRECOGNIZED;
+}
+
+export interface Ping {
+}
+
+export interface Pong {
 }
 
 function createBaseTerminalMessage(): TerminalMessage {
-  return { type: "", version: 0, token: "", cols: 0, rows: 0, term: "", data: new Uint8Array(0), code: 0, error: "" };
+  return { version: 0, payload: undefined };
 }
 
 export const TerminalMessage: MessageFns<TerminalMessage> = {
   encode(message: TerminalMessage, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.type !== "") {
-      writer.uint32(10).string(message.type);
-    }
     if (message.version !== 0) {
-      writer.uint32(16).uint32(message.version);
+      writer.uint32(80).uint32(message.version);
     }
-    if (message.token !== "") {
-      writer.uint32(26).string(message.token);
-    }
-    if (message.cols !== 0) {
-      writer.uint32(32).uint32(message.cols);
-    }
-    if (message.rows !== 0) {
-      writer.uint32(40).uint32(message.rows);
-    }
-    if (message.term !== "") {
-      writer.uint32(50).string(message.term);
-    }
-    if (message.data.length !== 0) {
-      writer.uint32(58).bytes(message.data);
-    }
-    if (message.code !== 0) {
-      writer.uint32(64).int32(message.code);
-    }
-    if (message.error !== "") {
-      writer.uint32(74).string(message.error);
+    switch (message.payload?.$case) {
+      case "open":
+        OpenRequest.encode(message.payload.open, writer.uint32(90).fork()).join();
+        break;
+      case "ready":
+        Ready.encode(message.payload.ready, writer.uint32(98).fork()).join();
+        break;
+      case "input":
+        Bytes.encode(message.payload.input, writer.uint32(106).fork()).join();
+        break;
+      case "output":
+        Bytes.encode(message.payload.output, writer.uint32(114).fork()).join();
+        break;
+      case "resize":
+        Size.encode(message.payload.resize, writer.uint32(122).fork()).join();
+        break;
+      case "detach":
+        Detach.encode(message.payload.detach, writer.uint32(130).fork()).join();
+        break;
+      case "terminate":
+        Terminate.encode(message.payload.terminate, writer.uint32(138).fork()).join();
+        break;
+      case "lifecycle":
+        Lifecycle.encode(message.payload.lifecycle, writer.uint32(146).fork()).join();
+        break;
+      case "failure":
+        Failure.encode(message.payload.failure, writer.uint32(154).fork()).join();
+        break;
+      case "ping":
+        Ping.encode(message.payload.ping, writer.uint32(162).fork()).join();
+        break;
+      case "pong":
+        Pong.encode(message.payload.pong, writer.uint32(170).fork()).join();
+        break;
     }
     return writer;
   },
@@ -77,12 +237,149 @@ export const TerminalMessage: MessageFns<TerminalMessage> = {
       while (reader.pos < end) {
         const tag = reader.uint32();
         switch (tag >>> 3) {
-          case 1: {
-            if (tag !== 10) {
+          case 10: {
+            if (tag !== 80) {
               break;
             }
 
-            message.type = reader.string();
+            message.version = reader.uint32();
+            continue;
+          }
+          case 11: {
+            if (tag !== 90) {
+              break;
+            }
+
+            message.payload = { $case: "open", open: OpenRequest.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 12: {
+            if (tag !== 98) {
+              break;
+            }
+
+            message.payload = { $case: "ready", ready: Ready.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 13: {
+            if (tag !== 106) {
+              break;
+            }
+
+            message.payload = { $case: "input", input: Bytes.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 14: {
+            if (tag !== 114) {
+              break;
+            }
+
+            message.payload = { $case: "output", output: Bytes.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 15: {
+            if (tag !== 122) {
+              break;
+            }
+
+            message.payload = { $case: "resize", resize: Size.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 16: {
+            if (tag !== 130) {
+              break;
+            }
+
+            message.payload = { $case: "detach", detach: Detach.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 17: {
+            if (tag !== 138) {
+              break;
+            }
+
+            message.payload = { $case: "terminate", terminate: Terminate.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 18: {
+            if (tag !== 146) {
+              break;
+            }
+
+            message.payload = { $case: "lifecycle", lifecycle: Lifecycle.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 19: {
+            if (tag !== 154) {
+              break;
+            }
+
+            message.payload = { $case: "failure", failure: Failure.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 20: {
+            if (tag !== 162) {
+              break;
+            }
+
+            message.payload = { $case: "ping", ping: Ping.decode(reader, reader.uint32()) };
+            continue;
+          }
+          case 21: {
+            if (tag !== 170) {
+              break;
+            }
+
+            message.payload = { $case: "pong", pong: Pong.decode(reader, reader.uint32()) };
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseSize(): Size {
+  return { cols: 0, rows: 0 };
+}
+
+export const Size: MessageFns<Size> = {
+  encode(message: Size, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.cols !== 0) {
+      writer.uint32(8).uint32(message.cols);
+    }
+    if (message.rows !== 0) {
+      writer.uint32(16).uint32(message.rows);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Size {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseSize();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.cols = reader.uint32();
             continue;
           }
           case 2: {
@@ -90,7 +387,80 @@ export const TerminalMessage: MessageFns<TerminalMessage> = {
               break;
             }
 
-            message.version = reader.uint32();
+            message.rows = reader.uint32();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseOpenRequest(): OpenRequest {
+  return { sessionId: "", token: "", size: undefined, term: "", mode: 0, capabilities: [] };
+}
+
+export const OpenRequest: MessageFns<OpenRequest> = {
+  encode(message: OpenRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sessionId !== "") {
+      writer.uint32(10).string(message.sessionId);
+    }
+    if (message.token !== "") {
+      writer.uint32(18).string(message.token);
+    }
+    if (message.size !== undefined) {
+      Size.encode(message.size, writer.uint32(26).fork()).join();
+    }
+    if (message.term !== "") {
+      writer.uint32(34).string(message.term);
+    }
+    if (message.mode !== 0) {
+      writer.uint32(40).int32(message.mode);
+    }
+    if (message.capabilities.length !== 0) {
+      writer.uint32(50).fork();
+      for (const v of message.capabilities) {
+        writer.int32(v);
+      }
+      writer.join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): OpenRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseOpenRequest();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+
+            message.sessionId = reader.string();
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+
+            message.token = reader.string();
             continue;
           }
           case 3: {
@@ -98,15 +468,15 @@ export const TerminalMessage: MessageFns<TerminalMessage> = {
               break;
             }
 
-            message.token = reader.string();
+            message.size = Size.decode(reader, reader.uint32());
             continue;
           }
           case 4: {
-            if (tag !== 32) {
+            if (tag !== 34) {
               break;
             }
 
-            message.cols = reader.uint32();
+            message.term = reader.string();
             continue;
           }
           case 5: {
@@ -114,41 +484,420 @@ export const TerminalMessage: MessageFns<TerminalMessage> = {
               break;
             }
 
-            message.rows = reader.uint32();
+            message.mode = reader.int32() as any;
             continue;
           }
           case 6: {
-            if (tag !== 50) {
+            if (tag === 48) {
+              message.capabilities.push(reader.int32() as any);
+
+              continue;
+            }
+
+            if (tag === 50) {
+              const end2 = reader.uint32() + reader.pos;
+              while (reader.pos < end2) {
+                message.capabilities.push(reader.int32() as any);
+              }
+
+              continue;
+            }
+
+            break;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseReady(): Ready {
+  return { sessionId: "", backend: 0, capabilities: [] };
+}
+
+export const Ready: MessageFns<Ready> = {
+  encode(message: Ready, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sessionId !== "") {
+      writer.uint32(10).string(message.sessionId);
+    }
+    if (message.backend !== 0) {
+      writer.uint32(16).int32(message.backend);
+    }
+    if (message.capabilities.length !== 0) {
+      writer.uint32(26).fork();
+      for (const v of message.capabilities) {
+        writer.int32(v);
+      }
+      writer.join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Ready {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseReady();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
               break;
             }
 
-            message.term = reader.string();
+            message.sessionId = reader.string();
             continue;
           }
-          case 7: {
-            if (tag !== 58) {
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.backend = reader.int32() as any;
+            continue;
+          }
+          case 3: {
+            if (tag === 24) {
+              message.capabilities.push(reader.int32() as any);
+
+              continue;
+            }
+
+            if (tag === 26) {
+              const end2 = reader.uint32() + reader.pos;
+              while (reader.pos < end2) {
+                message.capabilities.push(reader.int32() as any);
+              }
+
+              continue;
+            }
+
+            break;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseBytes(): Bytes {
+  return { data: new Uint8Array(0) };
+}
+
+export const Bytes: MessageFns<Bytes> = {
+  encode(message: Bytes, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.data.length !== 0) {
+      writer.uint32(10).bytes(message.data);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Bytes {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseBytes();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
               break;
             }
 
             message.data = reader.bytes();
             continue;
           }
-          case 8: {
-            if (tag !== 64) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseDetach(): Detach {
+  return {};
+}
+
+export const Detach: MessageFns<Detach> = {
+  encode(_: Detach, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Detach {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseDetach();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseTerminate(): Terminate {
+  return {};
+}
+
+export const Terminate: MessageFns<Terminate> = {
+  encode(_: Terminate, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Terminate {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseTerminate();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseLifecycle(): Lifecycle {
+  return { state: 0, exitCode: 0, exitCodeKnown: false };
+}
+
+export const Lifecycle: MessageFns<Lifecycle> = {
+  encode(message: Lifecycle, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.state !== 0) {
+      writer.uint32(8).int32(message.state);
+    }
+    if (message.exitCode !== 0) {
+      writer.uint32(16).int32(message.exitCode);
+    }
+    if (message.exitCodeKnown !== false) {
+      writer.uint32(24).bool(message.exitCodeKnown);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Lifecycle {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseLifecycle();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
               break;
             }
 
-            message.code = reader.int32();
+            message.state = reader.int32() as any;
             continue;
           }
-          case 9: {
-            if (tag !== 74) {
+          case 2: {
+            if (tag !== 16) {
               break;
             }
 
-            message.error = reader.string();
+            message.exitCode = reader.int32();
             continue;
           }
+          case 3: {
+            if (tag !== 24) {
+              break;
+            }
+
+            message.exitCodeKnown = reader.bool();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBaseFailure(): Failure {
+  return { code: 0, retryable: false };
+}
+
+export const Failure: MessageFns<Failure> = {
+  encode(message: Failure, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.code !== 0) {
+      writer.uint32(8).int32(message.code);
+    }
+    if (message.retryable !== false) {
+      writer.uint32(16).bool(message.retryable);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Failure {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseFailure();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 8) {
+              break;
+            }
+
+            message.code = reader.int32() as any;
+            continue;
+          }
+          case 2: {
+            if (tag !== 16) {
+              break;
+            }
+
+            message.retryable = reader.bool();
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBasePing(): Ping {
+  return {};
+}
+
+export const Ping: MessageFns<Ping> = {
+  encode(_: Ping, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Ping {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBasePing();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    } finally {
+      (reader as any).__tsProtoDecodeDepth = previousRecursionDepth;
+    }
+  },
+};
+
+function createBasePong(): Pong {
+  return {};
+}
+
+export const Pong: MessageFns<Pong> = {
+  encode(_: Pong, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Pong {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const previousRecursionDepth = (reader as any).__tsProtoDecodeDepth ?? 0;
+    if (previousRecursionDepth >= 100) {
+      throw new globalThis.Error("protobuf decode recursion limit exceeded");
+    }
+    (reader as any).__tsProtoDecodeDepth = previousRecursionDepth + 1;
+    try {
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBasePong();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
         }
         if ((tag & 7) === 4 || tag === 0) {
           break;

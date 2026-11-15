@@ -90,7 +90,7 @@ export const actions: Actions = {
     }
     return {
       message:
-        "Session ended. The agent will close its shell within a few seconds.",
+        "Termination requested. The agent will confirm after it next checks in.",
     };
   },
 };

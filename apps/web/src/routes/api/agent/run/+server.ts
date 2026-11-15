@@ -44,6 +44,29 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     )
   )
     return jsonError("invalid_operation");
+  if (
+    body.backend !== undefined &&
+    !["tmux", "ephemeral"].includes(body.backend as string)
+  )
+    return jsonError("invalid_request");
+  if (
+    body.generation !== undefined &&
+    (typeof body.generation !== "string" ||
+      !/^[A-Za-z0-9_-]{16,64}$/.test(body.generation))
+  )
+    return jsonError("invalid_request");
+  if (body.backend === "tmux" && !body.generation)
+    return jsonError("invalid_request");
+  for (const key of ["recoveredIds", "endedIds", "terminatedIds"])
+    if (
+      body[key] !== undefined &&
+      (!Array.isArray(body[key]) ||
+        (body[key] as unknown[]).length > 128 ||
+        (body[key] as unknown[]).some(
+          (id) => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id),
+        ))
+    )
+      return jsonError("invalid_request");
   try {
     await pairingStub(env.WEBSSH_STATE as never).limitRequest(
       clientIp(request),

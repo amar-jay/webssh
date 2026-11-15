@@ -123,7 +123,7 @@ Properties:
 - Short-lived (default 60 seconds to attach; not a long-lived shell capability).
 - Bound to `agent_id` and `terminal_session_id`.
 - Single-purpose attach; replay of an already-consumed nonce fails when the agent tracks recent nonces (bounded set). Expiry alone is insufficient if the grant is intercepted before first use—prefer short TTL plus nonce replay cache on the agent.
-- Revoked agents (credential deleted/rotated server-side) cannot mint new grants; the agent checks current authorization online and closes connections after revocation.
+- Revoked agents (credential deleted/rotated server-side) cannot mint new grants; the agent checks current authorization online and detaches connections after revocation; existing tmux work remains local but requires fresh valid authorization to reattach.
 
 The legacy per-run `--json` token remains **development-only** for `/dev/connect` and local tests. Production session routes must not accept or emit that broad token.
 
@@ -141,9 +141,9 @@ The legacy per-run `--json` token remains **development-only** for `/dev/connect
 
 The agent performs online admission checks in addition to HMAC verification. Pairing credentials include the HTTPS control-plane origin. `serve` authenticates with its agent token and registers a fresh session ID for that run. The initial session ID and browser URL appear in paired JSON output. A running listener can serve additional session IDs created from the dashboard after a session ends; online admission verifies that every session belongs to that run before PTY creation. One live controller is permitted per paired run.
 
-The agent consumes each grant nonce transactionally through the owner DO, checking the issuing browser session and current agent status. Replay is rejected in both the bounded local cache and the DO. Cache capacity fails closed rather than evicting live nonces. Grants expire at their exact expiry second and cannot exceed a 60-second verification window. Nonce consumption persists across agent process restarts; new runs have distinct IDs.
+The agent consumes each grant nonce transactionally through the owner DO, checking the issuing browser session, current agent status, stable session ownership, and current run generation. Replay is rejected in both the bounded local cache and the DO. Cache capacity fails closed rather than evicting live nonces. Grants expire at their exact expiry second and cannot exceed a 60-second verification window. Nonce consumption persists across agent process restarts; new runs have distinct IDs.
 
-Connected agents recheck authorization every two seconds with a three-second request budget. Revocation, browser-session logout/expiry, credential expiry, or control-plane failure closes the connection and its shell. This intentionally trades offline availability for revocation enforcement. Revocation is bounded by that polling/request interval, not instantaneous. Browser logout is POST-only and does not report success if server-side revocation fails.
+Connected agents recheck authorization every two seconds with a three-second request budget. Revocation, browser-session logout/expiry, credential expiry, or control-plane failure detaches the connection; tmux work is preserved, while explicitly ephemeral shells are stopped. This intentionally trades offline availability for revocation enforcement. Revocation is bounded by that polling/request interval, not instantaneous. Browser logout is POST-only and does not report success if server-side revocation fails.
 
 Agent tokens expire after 30 days. `webssh pair --renew` rotates the token and atomically saves the replacement; old tokens stop working, including running agents using them. Restart serve after renewal. If the response or local save is lost after rotation, re-pair and revoke the old agent from an authenticated owner session. `pair --replace` explicitly revokes a previous readable credential before replacing its local file. Expired/revoked credentials require a fresh pairing. Grant keys stay private to the control plane and paired agent.
 

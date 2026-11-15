@@ -21,19 +21,308 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// One envelope per length-prefixed TCP frame. The agent validates which fields
-// are legal for each type and direction. Never reuse field numbers.
+type Capability int32
+
+const (
+	Capability_CAPABILITY_UNSPECIFIED Capability = 0
+	Capability_PERSISTENCE            Capability = 1
+	Capability_RECONNECT              Capability = 2
+	Capability_TERMINATE              Capability = 3
+)
+
+// Enum value maps for Capability.
+var (
+	Capability_name = map[int32]string{
+		0: "CAPABILITY_UNSPECIFIED",
+		1: "PERSISTENCE",
+		2: "RECONNECT",
+		3: "TERMINATE",
+	}
+	Capability_value = map[string]int32{
+		"CAPABILITY_UNSPECIFIED": 0,
+		"PERSISTENCE":            1,
+		"RECONNECT":              2,
+		"TERMINATE":              3,
+	}
+)
+
+func (x Capability) Enum() *Capability {
+	p := new(Capability)
+	*p = x
+	return p
+}
+
+func (x Capability) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Capability) Descriptor() protoreflect.EnumDescriptor {
+	return file_terminal_proto_enumTypes[0].Descriptor()
+}
+
+func (Capability) Type() protoreflect.EnumType {
+	return &file_terminal_proto_enumTypes[0]
+}
+
+func (x Capability) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Capability.Descriptor instead.
+func (Capability) EnumDescriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{0}
+}
+
+type Backend int32
+
+const (
+	Backend_BACKEND_UNSPECIFIED Backend = 0
+	Backend_TMUX                Backend = 1
+	Backend_EPHEMERAL           Backend = 2
+)
+
+// Enum value maps for Backend.
+var (
+	Backend_name = map[int32]string{
+		0: "BACKEND_UNSPECIFIED",
+		1: "TMUX",
+		2: "EPHEMERAL",
+	}
+	Backend_value = map[string]int32{
+		"BACKEND_UNSPECIFIED": 0,
+		"TMUX":                1,
+		"EPHEMERAL":           2,
+	}
+)
+
+func (x Backend) Enum() *Backend {
+	p := new(Backend)
+	*p = x
+	return p
+}
+
+func (x Backend) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Backend) Descriptor() protoreflect.EnumDescriptor {
+	return file_terminal_proto_enumTypes[1].Descriptor()
+}
+
+func (Backend) Type() protoreflect.EnumType {
+	return &file_terminal_proto_enumTypes[1]
+}
+
+func (x Backend) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Backend.Descriptor instead.
+func (Backend) EnumDescriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{1}
+}
+
+type OpenRequest_Mode int32
+
+const (
+	OpenRequest_MODE_UNSPECIFIED OpenRequest_Mode = 0
+	OpenRequest_CREATE_OR_ATTACH OpenRequest_Mode = 1
+	OpenRequest_ATTACH_EXISTING  OpenRequest_Mode = 2
+)
+
+// Enum value maps for OpenRequest_Mode.
+var (
+	OpenRequest_Mode_name = map[int32]string{
+		0: "MODE_UNSPECIFIED",
+		1: "CREATE_OR_ATTACH",
+		2: "ATTACH_EXISTING",
+	}
+	OpenRequest_Mode_value = map[string]int32{
+		"MODE_UNSPECIFIED": 0,
+		"CREATE_OR_ATTACH": 1,
+		"ATTACH_EXISTING":  2,
+	}
+)
+
+func (x OpenRequest_Mode) Enum() *OpenRequest_Mode {
+	p := new(OpenRequest_Mode)
+	*p = x
+	return p
+}
+
+func (x OpenRequest_Mode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (OpenRequest_Mode) Descriptor() protoreflect.EnumDescriptor {
+	return file_terminal_proto_enumTypes[2].Descriptor()
+}
+
+func (OpenRequest_Mode) Type() protoreflect.EnumType {
+	return &file_terminal_proto_enumTypes[2]
+}
+
+func (x OpenRequest_Mode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use OpenRequest_Mode.Descriptor instead.
+func (OpenRequest_Mode) EnumDescriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{2, 0}
+}
+
+type Lifecycle_State int32
+
+const (
+	Lifecycle_STATE_UNSPECIFIED Lifecycle_State = 0
+	Lifecycle_DETACHED          Lifecycle_State = 1
+	Lifecycle_ENDED             Lifecycle_State = 2
+	Lifecycle_TERMINATED        Lifecycle_State = 3
+)
+
+// Enum value maps for Lifecycle_State.
+var (
+	Lifecycle_State_name = map[int32]string{
+		0: "STATE_UNSPECIFIED",
+		1: "DETACHED",
+		2: "ENDED",
+		3: "TERMINATED",
+	}
+	Lifecycle_State_value = map[string]int32{
+		"STATE_UNSPECIFIED": 0,
+		"DETACHED":          1,
+		"ENDED":             2,
+		"TERMINATED":        3,
+	}
+)
+
+func (x Lifecycle_State) Enum() *Lifecycle_State {
+	p := new(Lifecycle_State)
+	*p = x
+	return p
+}
+
+func (x Lifecycle_State) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Lifecycle_State) Descriptor() protoreflect.EnumDescriptor {
+	return file_terminal_proto_enumTypes[3].Descriptor()
+}
+
+func (Lifecycle_State) Type() protoreflect.EnumType {
+	return &file_terminal_proto_enumTypes[3]
+}
+
+func (x Lifecycle_State) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Lifecycle_State.Descriptor instead.
+func (Lifecycle_State) EnumDescriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{7, 0}
+}
+
+type Failure_Code int32
+
+const (
+	Failure_CODE_UNSPECIFIED        Failure_Code = 0
+	Failure_UNAUTHORIZED            Failure_Code = 1
+	Failure_SESSION_BUSY            Failure_Code = 2
+	Failure_SESSION_ENDED           Failure_Code = 3
+	Failure_SESSION_NOT_FOUND       Failure_Code = 4
+	Failure_INVALID_HANDSHAKE       Failure_Code = 5
+	Failure_UNSUPPORTED_PROTOCOL    Failure_Code = 6
+	Failure_INVALID_ATTACH          Failure_Code = 7
+	Failure_INVALID_TERMINAL        Failure_Code = 8
+	Failure_SHELL_START_FAILED      Failure_Code = 9
+	Failure_INVALID_SESSION_MESSAGE Failure_Code = 10
+	Failure_SHELL_IO_CLOSED         Failure_Code = 11
+	Failure_BACKEND_UNAVAILABLE     Failure_Code = 12
+	Failure_CAPABILITY_MISMATCH     Failure_Code = 13
+)
+
+// Enum value maps for Failure_Code.
+var (
+	Failure_Code_name = map[int32]string{
+		0:  "CODE_UNSPECIFIED",
+		1:  "UNAUTHORIZED",
+		2:  "SESSION_BUSY",
+		3:  "SESSION_ENDED",
+		4:  "SESSION_NOT_FOUND",
+		5:  "INVALID_HANDSHAKE",
+		6:  "UNSUPPORTED_PROTOCOL",
+		7:  "INVALID_ATTACH",
+		8:  "INVALID_TERMINAL",
+		9:  "SHELL_START_FAILED",
+		10: "INVALID_SESSION_MESSAGE",
+		11: "SHELL_IO_CLOSED",
+		12: "BACKEND_UNAVAILABLE",
+		13: "CAPABILITY_MISMATCH",
+	}
+	Failure_Code_value = map[string]int32{
+		"CODE_UNSPECIFIED":        0,
+		"UNAUTHORIZED":            1,
+		"SESSION_BUSY":            2,
+		"SESSION_ENDED":           3,
+		"SESSION_NOT_FOUND":       4,
+		"INVALID_HANDSHAKE":       5,
+		"UNSUPPORTED_PROTOCOL":    6,
+		"INVALID_ATTACH":          7,
+		"INVALID_TERMINAL":        8,
+		"SHELL_START_FAILED":      9,
+		"INVALID_SESSION_MESSAGE": 10,
+		"SHELL_IO_CLOSED":         11,
+		"BACKEND_UNAVAILABLE":     12,
+		"CAPABILITY_MISMATCH":     13,
+	}
+)
+
+func (x Failure_Code) Enum() *Failure_Code {
+	p := new(Failure_Code)
+	*p = x
+	return p
+}
+
+func (x Failure_Code) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Failure_Code) Descriptor() protoreflect.EnumDescriptor {
+	return file_terminal_proto_enumTypes[4].Descriptor()
+}
+
+func (Failure_Code) Type() protoreflect.EnumType {
+	return &file_terminal_proto_enumTypes[4]
+}
+
+func (x Failure_Code) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Failure_Code.Descriptor instead.
+func (Failure_Code) EnumDescriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{8, 0}
+}
+
+// Protocol v1 used untyped fields 1..9. They must never be reused.
 type TerminalMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"` // attach, ready, input, output, resize, detach, exit, error
-	Version       uint32                 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
-	Token         string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
-	Cols          uint32                 `protobuf:"varint,4,opt,name=cols,proto3" json:"cols,omitempty"`
-	Rows          uint32                 `protobuf:"varint,5,opt,name=rows,proto3" json:"rows,omitempty"`
-	Term          string                 `protobuf:"bytes,6,opt,name=term,proto3" json:"term,omitempty"`
-	Data          []byte                 `protobuf:"bytes,7,opt,name=data,proto3" json:"data,omitempty"`
-	Code          int32                  `protobuf:"varint,8,opt,name=code,proto3" json:"code,omitempty"`
-	Error         string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Version uint32                 `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*TerminalMessage_Open
+	//	*TerminalMessage_Ready
+	//	*TerminalMessage_Input
+	//	*TerminalMessage_Output
+	//	*TerminalMessage_Resize
+	//	*TerminalMessage_Detach
+	//	*TerminalMessage_Terminate
+	//	*TerminalMessage_Lifecycle
+	//	*TerminalMessage_Failure
+	//	*TerminalMessage_Ping
+	//	*TerminalMessage_Pong
+	Payload       isTerminalMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -68,13 +357,6 @@ func (*TerminalMessage) Descriptor() ([]byte, []int) {
 	return file_terminal_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TerminalMessage) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
 func (x *TerminalMessage) GetVersion() uint32 {
 	if x != nil {
 		return x.Version
@@ -82,70 +364,764 @@ func (x *TerminalMessage) GetVersion() uint32 {
 	return 0
 }
 
-func (x *TerminalMessage) GetToken() string {
+func (x *TerminalMessage) GetPayload() isTerminalMessage_Payload {
 	if x != nil {
-		return x.Token
+		return x.Payload
 	}
-	return ""
+	return nil
 }
 
-func (x *TerminalMessage) GetCols() uint32 {
+func (x *TerminalMessage) GetOpen() *OpenRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Open); ok {
+			return x.Open
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetReady() *Ready {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Ready); ok {
+			return x.Ready
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetInput() *Bytes {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Input); ok {
+			return x.Input
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetOutput() *Bytes {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Output); ok {
+			return x.Output
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetResize() *Size {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Resize); ok {
+			return x.Resize
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetDetach() *Detach {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Detach); ok {
+			return x.Detach
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetTerminate() *Terminate {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Terminate); ok {
+			return x.Terminate
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetLifecycle() *Lifecycle {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Lifecycle); ok {
+			return x.Lifecycle
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetFailure() *Failure {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Failure); ok {
+			return x.Failure
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetPing() *Ping {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Ping); ok {
+			return x.Ping
+		}
+	}
+	return nil
+}
+
+func (x *TerminalMessage) GetPong() *Pong {
+	if x != nil {
+		if x, ok := x.Payload.(*TerminalMessage_Pong); ok {
+			return x.Pong
+		}
+	}
+	return nil
+}
+
+type isTerminalMessage_Payload interface {
+	isTerminalMessage_Payload()
+}
+
+type TerminalMessage_Open struct {
+	Open *OpenRequest `protobuf:"bytes,11,opt,name=open,proto3,oneof"`
+}
+
+type TerminalMessage_Ready struct {
+	Ready *Ready `protobuf:"bytes,12,opt,name=ready,proto3,oneof"`
+}
+
+type TerminalMessage_Input struct {
+	Input *Bytes `protobuf:"bytes,13,opt,name=input,proto3,oneof"`
+}
+
+type TerminalMessage_Output struct {
+	Output *Bytes `protobuf:"bytes,14,opt,name=output,proto3,oneof"`
+}
+
+type TerminalMessage_Resize struct {
+	Resize *Size `protobuf:"bytes,15,opt,name=resize,proto3,oneof"`
+}
+
+type TerminalMessage_Detach struct {
+	Detach *Detach `protobuf:"bytes,16,opt,name=detach,proto3,oneof"`
+}
+
+type TerminalMessage_Terminate struct {
+	Terminate *Terminate `protobuf:"bytes,17,opt,name=terminate,proto3,oneof"`
+}
+
+type TerminalMessage_Lifecycle struct {
+	Lifecycle *Lifecycle `protobuf:"bytes,18,opt,name=lifecycle,proto3,oneof"`
+}
+
+type TerminalMessage_Failure struct {
+	Failure *Failure `protobuf:"bytes,19,opt,name=failure,proto3,oneof"`
+}
+
+type TerminalMessage_Ping struct {
+	Ping *Ping `protobuf:"bytes,20,opt,name=ping,proto3,oneof"`
+}
+
+type TerminalMessage_Pong struct {
+	Pong *Pong `protobuf:"bytes,21,opt,name=pong,proto3,oneof"`
+}
+
+func (*TerminalMessage_Open) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Ready) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Input) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Output) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Resize) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Detach) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Terminate) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Lifecycle) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Failure) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Ping) isTerminalMessage_Payload() {}
+
+func (*TerminalMessage_Pong) isTerminalMessage_Payload() {}
+
+type Size struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cols          uint32                 `protobuf:"varint,1,opt,name=cols,proto3" json:"cols,omitempty"`
+	Rows          uint32                 `protobuf:"varint,2,opt,name=rows,proto3" json:"rows,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Size) Reset() {
+	*x = Size{}
+	mi := &file_terminal_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Size) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Size) ProtoMessage() {}
+
+func (x *Size) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Size.ProtoReflect.Descriptor instead.
+func (*Size) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Size) GetCols() uint32 {
 	if x != nil {
 		return x.Cols
 	}
 	return 0
 }
 
-func (x *TerminalMessage) GetRows() uint32 {
+func (x *Size) GetRows() uint32 {
 	if x != nil {
 		return x.Rows
 	}
 	return 0
 }
 
-func (x *TerminalMessage) GetTerm() string {
+type OpenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Token         string                 `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
+	Size          *Size                  `protobuf:"bytes,3,opt,name=size,proto3" json:"size,omitempty"`
+	Term          string                 `protobuf:"bytes,4,opt,name=term,proto3" json:"term,omitempty"`
+	Mode          OpenRequest_Mode       `protobuf:"varint,5,opt,name=mode,proto3,enum=webssh.protocol.v2.OpenRequest_Mode" json:"mode,omitempty"`
+	Capabilities  []Capability           `protobuf:"varint,6,rep,packed,name=capabilities,proto3,enum=webssh.protocol.v2.Capability" json:"capabilities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenRequest) Reset() {
+	*x = OpenRequest{}
+	mi := &file_terminal_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenRequest) ProtoMessage() {}
+
+func (x *OpenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenRequest.ProtoReflect.Descriptor instead.
+func (*OpenRequest) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *OpenRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *OpenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *OpenRequest) GetSize() *Size {
+	if x != nil {
+		return x.Size
+	}
+	return nil
+}
+
+func (x *OpenRequest) GetTerm() string {
 	if x != nil {
 		return x.Term
 	}
 	return ""
 }
 
-func (x *TerminalMessage) GetData() []byte {
+func (x *OpenRequest) GetMode() OpenRequest_Mode {
+	if x != nil {
+		return x.Mode
+	}
+	return OpenRequest_MODE_UNSPECIFIED
+}
+
+func (x *OpenRequest) GetCapabilities() []Capability {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+type Ready struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Backend       Backend                `protobuf:"varint,2,opt,name=backend,proto3,enum=webssh.protocol.v2.Backend" json:"backend,omitempty"`
+	Capabilities  []Capability           `protobuf:"varint,3,rep,packed,name=capabilities,proto3,enum=webssh.protocol.v2.Capability" json:"capabilities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Ready) Reset() {
+	*x = Ready{}
+	mi := &file_terminal_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Ready) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Ready) ProtoMessage() {}
+
+func (x *Ready) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Ready.ProtoReflect.Descriptor instead.
+func (*Ready) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Ready) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *Ready) GetBackend() Backend {
+	if x != nil {
+		return x.Backend
+	}
+	return Backend_BACKEND_UNSPECIFIED
+}
+
+func (x *Ready) GetCapabilities() []Capability {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+type Bytes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Bytes) Reset() {
+	*x = Bytes{}
+	mi := &file_terminal_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Bytes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Bytes) ProtoMessage() {}
+
+func (x *Bytes) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Bytes.ProtoReflect.Descriptor instead.
+func (*Bytes) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Bytes) GetData() []byte {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-func (x *TerminalMessage) GetCode() int32 {
+type Detach struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Detach) Reset() {
+	*x = Detach{}
+	mi := &file_terminal_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Detach) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Detach) ProtoMessage() {}
+
+func (x *Detach) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[5]
 	if x != nil {
-		return x.Code
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Detach.ProtoReflect.Descriptor instead.
+func (*Detach) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{5}
+}
+
+type Terminate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Terminate) Reset() {
+	*x = Terminate{}
+	mi := &file_terminal_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Terminate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Terminate) ProtoMessage() {}
+
+func (x *Terminate) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Terminate.ProtoReflect.Descriptor instead.
+func (*Terminate) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{6}
+}
+
+type Lifecycle struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	State         Lifecycle_State        `protobuf:"varint,1,opt,name=state,proto3,enum=webssh.protocol.v2.Lifecycle_State" json:"state,omitempty"`
+	ExitCode      int32                  `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	ExitCodeKnown bool                   `protobuf:"varint,3,opt,name=exit_code_known,json=exitCodeKnown,proto3" json:"exit_code_known,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Lifecycle) Reset() {
+	*x = Lifecycle{}
+	mi := &file_terminal_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Lifecycle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Lifecycle) ProtoMessage() {}
+
+func (x *Lifecycle) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Lifecycle.ProtoReflect.Descriptor instead.
+func (*Lifecycle) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Lifecycle) GetState() Lifecycle_State {
+	if x != nil {
+		return x.State
+	}
+	return Lifecycle_STATE_UNSPECIFIED
+}
+
+func (x *Lifecycle) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
 	}
 	return 0
 }
 
-func (x *TerminalMessage) GetError() string {
+func (x *Lifecycle) GetExitCodeKnown() bool {
 	if x != nil {
-		return x.Error
+		return x.ExitCodeKnown
 	}
-	return ""
+	return false
+}
+
+type Failure struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          Failure_Code           `protobuf:"varint,1,opt,name=code,proto3,enum=webssh.protocol.v2.Failure_Code" json:"code,omitempty"`
+	Retryable     bool                   `protobuf:"varint,2,opt,name=retryable,proto3" json:"retryable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Failure) Reset() {
+	*x = Failure{}
+	mi := &file_terminal_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Failure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Failure) ProtoMessage() {}
+
+func (x *Failure) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Failure.ProtoReflect.Descriptor instead.
+func (*Failure) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Failure) GetCode() Failure_Code {
+	if x != nil {
+		return x.Code
+	}
+	return Failure_CODE_UNSPECIFIED
+}
+
+func (x *Failure) GetRetryable() bool {
+	if x != nil {
+		return x.Retryable
+	}
+	return false
+}
+
+type Ping struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Ping) Reset() {
+	*x = Ping{}
+	mi := &file_terminal_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Ping) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Ping) ProtoMessage() {}
+
+func (x *Ping) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Ping.ProtoReflect.Descriptor instead.
+func (*Ping) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{9}
+}
+
+type Pong struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Pong) Reset() {
+	*x = Pong{}
+	mi := &file_terminal_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Pong) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Pong) ProtoMessage() {}
+
+func (x *Pong) ProtoReflect() protoreflect.Message {
+	mi := &file_terminal_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Pong.ProtoReflect.Descriptor instead.
+func (*Pong) Descriptor() ([]byte, []int) {
+	return file_terminal_proto_rawDescGZIP(), []int{10}
 }
 
 var File_terminal_proto protoreflect.FileDescriptor
 
 const file_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x0eterminal.proto\x12\x12webssh.protocol.v1\"\xcf\x01\n" +
-	"\x0fTerminalMessage\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\rR\aversion\x12\x14\n" +
-	"\x05token\x18\x03 \x01(\tR\x05token\x12\x12\n" +
-	"\x04cols\x18\x04 \x01(\rR\x04cols\x12\x12\n" +
-	"\x04rows\x18\x05 \x01(\rR\x04rows\x12\x12\n" +
-	"\x04term\x18\x06 \x01(\tR\x04term\x12\x12\n" +
-	"\x04data\x18\a \x01(\fR\x04data\x12\x12\n" +
-	"\x04code\x18\b \x01(\x05R\x04code\x12\x14\n" +
-	"\x05error\x18\t \x01(\tR\x05errorB=Z;github.com/amar-jay/webssh/packages/protocol/gen;protocolpbb\x06proto3"
+	"\x0eterminal.proto\x12\x12webssh.protocol.v2\"\xc1\x05\n" +
+	"\x0fTerminalMessage\x12\x18\n" +
+	"\aversion\x18\n" +
+	" \x01(\rR\aversion\x125\n" +
+	"\x04open\x18\v \x01(\v2\x1f.webssh.protocol.v2.OpenRequestH\x00R\x04open\x121\n" +
+	"\x05ready\x18\f \x01(\v2\x19.webssh.protocol.v2.ReadyH\x00R\x05ready\x121\n" +
+	"\x05input\x18\r \x01(\v2\x19.webssh.protocol.v2.BytesH\x00R\x05input\x123\n" +
+	"\x06output\x18\x0e \x01(\v2\x19.webssh.protocol.v2.BytesH\x00R\x06output\x122\n" +
+	"\x06resize\x18\x0f \x01(\v2\x18.webssh.protocol.v2.SizeH\x00R\x06resize\x124\n" +
+	"\x06detach\x18\x10 \x01(\v2\x1a.webssh.protocol.v2.DetachH\x00R\x06detach\x12=\n" +
+	"\tterminate\x18\x11 \x01(\v2\x1d.webssh.protocol.v2.TerminateH\x00R\tterminate\x12=\n" +
+	"\tlifecycle\x18\x12 \x01(\v2\x1d.webssh.protocol.v2.LifecycleH\x00R\tlifecycle\x127\n" +
+	"\afailure\x18\x13 \x01(\v2\x1b.webssh.protocol.v2.FailureH\x00R\afailure\x12.\n" +
+	"\x04ping\x18\x14 \x01(\v2\x18.webssh.protocol.v2.PingH\x00R\x04ping\x12.\n" +
+	"\x04pong\x18\x15 \x01(\v2\x18.webssh.protocol.v2.PongH\x00R\x04pongB\t\n" +
+	"\apayloadJ\x04\b\x01\x10\n" +
+	"R\x04typeR\x05tokenR\x04colsR\x04rowsR\x04termR\x04dataR\x04codeR\x05error\".\n" +
+	"\x04Size\x12\x12\n" +
+	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
+	"\x04rows\x18\x02 \x01(\rR\x04rows\"\xcb\x02\n" +
+	"\vOpenRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token\x12,\n" +
+	"\x04size\x18\x03 \x01(\v2\x18.webssh.protocol.v2.SizeR\x04size\x12\x12\n" +
+	"\x04term\x18\x04 \x01(\tR\x04term\x128\n" +
+	"\x04mode\x18\x05 \x01(\x0e2$.webssh.protocol.v2.OpenRequest.ModeR\x04mode\x12B\n" +
+	"\fcapabilities\x18\x06 \x03(\x0e2\x1e.webssh.protocol.v2.CapabilityR\fcapabilities\"G\n" +
+	"\x04Mode\x12\x14\n" +
+	"\x10MODE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10CREATE_OR_ATTACH\x10\x01\x12\x13\n" +
+	"\x0fATTACH_EXISTING\x10\x02\"\xa1\x01\n" +
+	"\x05Ready\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
+	"\abackend\x18\x02 \x01(\x0e2\x1b.webssh.protocol.v2.BackendR\abackend\x12B\n" +
+	"\fcapabilities\x18\x03 \x03(\x0e2\x1e.webssh.protocol.v2.CapabilityR\fcapabilities\"\x1b\n" +
+	"\x05Bytes\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\b\n" +
+	"\x06Detach\"\v\n" +
+	"\tTerminate\"\xd4\x01\n" +
+	"\tLifecycle\x129\n" +
+	"\x05state\x18\x01 \x01(\x0e2#.webssh.protocol.v2.Lifecycle.StateR\x05state\x12\x1b\n" +
+	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12&\n" +
+	"\x0fexit_code_known\x18\x03 \x01(\bR\rexitCodeKnown\"G\n" +
+	"\x05State\x12\x15\n" +
+	"\x11STATE_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bDETACHED\x10\x01\x12\t\n" +
+	"\x05ENDED\x10\x02\x12\x0e\n" +
+	"\n" +
+	"TERMINATED\x10\x03\"\xa1\x03\n" +
+	"\aFailure\x124\n" +
+	"\x04code\x18\x01 \x01(\x0e2 .webssh.protocol.v2.Failure.CodeR\x04code\x12\x1c\n" +
+	"\tretryable\x18\x02 \x01(\bR\tretryable\"\xc1\x02\n" +
+	"\x04Code\x12\x14\n" +
+	"\x10CODE_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fUNAUTHORIZED\x10\x01\x12\x10\n" +
+	"\fSESSION_BUSY\x10\x02\x12\x11\n" +
+	"\rSESSION_ENDED\x10\x03\x12\x15\n" +
+	"\x11SESSION_NOT_FOUND\x10\x04\x12\x15\n" +
+	"\x11INVALID_HANDSHAKE\x10\x05\x12\x18\n" +
+	"\x14UNSUPPORTED_PROTOCOL\x10\x06\x12\x12\n" +
+	"\x0eINVALID_ATTACH\x10\a\x12\x14\n" +
+	"\x10INVALID_TERMINAL\x10\b\x12\x16\n" +
+	"\x12SHELL_START_FAILED\x10\t\x12\x1b\n" +
+	"\x17INVALID_SESSION_MESSAGE\x10\n" +
+	"\x12\x13\n" +
+	"\x0fSHELL_IO_CLOSED\x10\v\x12\x17\n" +
+	"\x13BACKEND_UNAVAILABLE\x10\f\x12\x17\n" +
+	"\x13CAPABILITY_MISMATCH\x10\r\"\x06\n" +
+	"\x04Ping\"\x06\n" +
+	"\x04Pong*W\n" +
+	"\n" +
+	"Capability\x12\x1a\n" +
+	"\x16CAPABILITY_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vPERSISTENCE\x10\x01\x12\r\n" +
+	"\tRECONNECT\x10\x02\x12\r\n" +
+	"\tTERMINATE\x10\x03*;\n" +
+	"\aBackend\x12\x17\n" +
+	"\x13BACKEND_UNSPECIFIED\x10\x00\x12\b\n" +
+	"\x04TMUX\x10\x01\x12\r\n" +
+	"\tEPHEMERAL\x10\x02B=Z;github.com/amar-jay/webssh/packages/protocol/gen;protocolpbb\x06proto3"
 
 var (
 	file_terminal_proto_rawDescOnce sync.Once
@@ -159,16 +1135,50 @@ func file_terminal_proto_rawDescGZIP() []byte {
 	return file_terminal_proto_rawDescData
 }
 
-var file_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_terminal_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_terminal_proto_goTypes = []any{
-	(*TerminalMessage)(nil), // 0: webssh.protocol.v1.TerminalMessage
+	(Capability)(0),         // 0: webssh.protocol.v2.Capability
+	(Backend)(0),            // 1: webssh.protocol.v2.Backend
+	(OpenRequest_Mode)(0),   // 2: webssh.protocol.v2.OpenRequest.Mode
+	(Lifecycle_State)(0),    // 3: webssh.protocol.v2.Lifecycle.State
+	(Failure_Code)(0),       // 4: webssh.protocol.v2.Failure.Code
+	(*TerminalMessage)(nil), // 5: webssh.protocol.v2.TerminalMessage
+	(*Size)(nil),            // 6: webssh.protocol.v2.Size
+	(*OpenRequest)(nil),     // 7: webssh.protocol.v2.OpenRequest
+	(*Ready)(nil),           // 8: webssh.protocol.v2.Ready
+	(*Bytes)(nil),           // 9: webssh.protocol.v2.Bytes
+	(*Detach)(nil),          // 10: webssh.protocol.v2.Detach
+	(*Terminate)(nil),       // 11: webssh.protocol.v2.Terminate
+	(*Lifecycle)(nil),       // 12: webssh.protocol.v2.Lifecycle
+	(*Failure)(nil),         // 13: webssh.protocol.v2.Failure
+	(*Ping)(nil),            // 14: webssh.protocol.v2.Ping
+	(*Pong)(nil),            // 15: webssh.protocol.v2.Pong
 }
 var file_terminal_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	7,  // 0: webssh.protocol.v2.TerminalMessage.open:type_name -> webssh.protocol.v2.OpenRequest
+	8,  // 1: webssh.protocol.v2.TerminalMessage.ready:type_name -> webssh.protocol.v2.Ready
+	9,  // 2: webssh.protocol.v2.TerminalMessage.input:type_name -> webssh.protocol.v2.Bytes
+	9,  // 3: webssh.protocol.v2.TerminalMessage.output:type_name -> webssh.protocol.v2.Bytes
+	6,  // 4: webssh.protocol.v2.TerminalMessage.resize:type_name -> webssh.protocol.v2.Size
+	10, // 5: webssh.protocol.v2.TerminalMessage.detach:type_name -> webssh.protocol.v2.Detach
+	11, // 6: webssh.protocol.v2.TerminalMessage.terminate:type_name -> webssh.protocol.v2.Terminate
+	12, // 7: webssh.protocol.v2.TerminalMessage.lifecycle:type_name -> webssh.protocol.v2.Lifecycle
+	13, // 8: webssh.protocol.v2.TerminalMessage.failure:type_name -> webssh.protocol.v2.Failure
+	14, // 9: webssh.protocol.v2.TerminalMessage.ping:type_name -> webssh.protocol.v2.Ping
+	15, // 10: webssh.protocol.v2.TerminalMessage.pong:type_name -> webssh.protocol.v2.Pong
+	6,  // 11: webssh.protocol.v2.OpenRequest.size:type_name -> webssh.protocol.v2.Size
+	2,  // 12: webssh.protocol.v2.OpenRequest.mode:type_name -> webssh.protocol.v2.OpenRequest.Mode
+	0,  // 13: webssh.protocol.v2.OpenRequest.capabilities:type_name -> webssh.protocol.v2.Capability
+	1,  // 14: webssh.protocol.v2.Ready.backend:type_name -> webssh.protocol.v2.Backend
+	0,  // 15: webssh.protocol.v2.Ready.capabilities:type_name -> webssh.protocol.v2.Capability
+	3,  // 16: webssh.protocol.v2.Lifecycle.state:type_name -> webssh.protocol.v2.Lifecycle.State
+	4,  // 17: webssh.protocol.v2.Failure.code:type_name -> webssh.protocol.v2.Failure.Code
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_terminal_proto_init() }
@@ -176,18 +1186,32 @@ func file_terminal_proto_init() {
 	if File_terminal_proto != nil {
 		return
 	}
+	file_terminal_proto_msgTypes[0].OneofWrappers = []any{
+		(*TerminalMessage_Open)(nil),
+		(*TerminalMessage_Ready)(nil),
+		(*TerminalMessage_Input)(nil),
+		(*TerminalMessage_Output)(nil),
+		(*TerminalMessage_Resize)(nil),
+		(*TerminalMessage_Detach)(nil),
+		(*TerminalMessage_Terminate)(nil),
+		(*TerminalMessage_Lifecycle)(nil),
+		(*TerminalMessage_Failure)(nil),
+		(*TerminalMessage_Ping)(nil),
+		(*TerminalMessage_Pong)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_terminal_proto_rawDesc), len(file_terminal_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   1,
+			NumEnums:      5,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_terminal_proto_goTypes,
 		DependencyIndexes: file_terminal_proto_depIdxs,
+		EnumInfos:         file_terminal_proto_enumTypes,
 		MessageInfos:      file_terminal_proto_msgTypes,
 	}.Build()
 	File_terminal_proto = out.File

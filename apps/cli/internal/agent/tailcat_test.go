@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 
 func TestTailcatAgentEndToEnd(t *testing.T) {
 	dm := integration.RunDERPAndSTUN(t, logger.Discard, "127.0.0.1")
-	a, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: testToken, Region: dm.Regions[1]})
+	a, err := New(Options{Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: testToken, Region: dm.Regions[1]})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestTailcatAgentEndToEnd(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	if info.Version != 1 || info.Port != protocol.DefaultPort || info.Token != testToken {
+	if info.Version != protocol.Version || info.Port != protocol.DefaultPort || info.Token != testToken {
 		t.Fatal("invalid connection record")
 	}
 	client := &tailcat.Client{Server: tailcat.Addr(info.Address), Logf: logger.Discard}

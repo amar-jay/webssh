@@ -28,6 +28,8 @@
           disconnected: "Connection lost. The remote shell has disconnected.",
           exited: `Shell exited (${state.code ?? 0}).`,
           disposed: "",
+          detached: "Detached. Open the session again to reconnect.",
+          terminated: "Session terminated.",
         };
         if (state.state !== "disposed")
           controller.terminal.write(`\r\n${messages[state.state]}\r\n`);

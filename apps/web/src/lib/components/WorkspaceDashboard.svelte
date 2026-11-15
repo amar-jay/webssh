@@ -102,7 +102,9 @@
           <CommandBlock command="webssh serve ." />{/if}
         {#each workspaces as run (run.runId)}<div class="workspace-run">
             <div>
-              <strong>{run.workspaceLabel}</strong><span class="pill"
+              <strong>{run.workspaceLabel}</strong><span class="muted small"
+                >{run.backend === "tmux" ? "Persistent" : "Ephemeral"}</span
+              ><span class="pill"
                 >{run.status === "online"
                   ? "Ready"
                   : run.status === "starting"
@@ -139,7 +141,11 @@
                 "Machine"}
             </p>
           </div>
-          <span class="pill">{labels[session.status]}</span>
+          <span class="pill"
+            >{session.terminationRequested
+              ? "Termination pending"
+              : labels[session.status]}</span
+          >
           <div class="session-actions">
             {#if !["ended", "expired"].includes(session.status)}<a
                 class="button subtle"
@@ -150,8 +156,7 @@
                   type="hidden"
                   name="sessionId"
                   value={session.terminalSessionId}
-                /><button class="button quiet" type="submit">End session</button
-                >
+                /><button class="button quiet" type="submit">Terminate</button>
               </form>{/if}
           </div>
         </div>{/each}

@@ -1,0 +1,131 @@
+[
+  {
+    "name": "attach",
+    "message": {
+      "sessionId": "fixture-session",
+      "capabilities": [
+        "persistence",
+        "reconnect",
+        "terminate"
+      ],
+      "type": "create",
+      "version": 2,
+      "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "cols": 80,
+      "rows": 24,
+      "term": "xterm-256color"
+    },
+    "hex": "0000005450025a500a0f666978747572652d73657373696f6e122061616161616161616161616161616161616161616161616161616161616161611a0408501018220e787465726d2d323536636f6c6f7228013203010203"
+  },
+  {
+    "name": "ready",
+    "message": {
+      "sessionId": "fixture-session",
+      "capabilities": [
+        "persistence",
+        "reconnect",
+        "terminate"
+      ],
+      "backend": "tmux",
+      "type": "ready",
+      "version": 2
+    },
+    "hex": "0000001c500262180a0f666978747572652d73657373696f6e10011a03010203"
+  },
+  {
+    "name": "bytes",
+    "message": {
+      "type": "output",
+      "data": "AP8b"
+    },
+    "hex": "0000000772050a0300ff1b"
+  },
+  {
+    "name": "resize",
+    "message": {
+      "type": "resize",
+      "cols": 120,
+      "rows": 40
+    },
+    "hex": "000000067a0408781028"
+  },
+  {
+    "name": "success",
+    "message": {
+      "codeKnown": true,
+      "type": "exit"
+    },
+    "hex": "0000000792010408021801"
+  },
+  {
+    "name": "failure",
+    "message": {
+      "codeKnown": true,
+      "type": "exit",
+      "code": 7
+    },
+    "hex": "00000009920106080210071801"
+  },
+  {
+    "name": "detach",
+    "message": {
+      "type": "detach"
+    },
+    "hex": "00000003820100"
+  },
+  {
+    "name": "denied",
+    "message": {
+      "type": "error",
+      "error": "unauthorized"
+    },
+    "hex": "000000059a01020801"
+  },
+  {
+    "name": "attach",
+    "message": {
+      "sessionId": "fixture-session",
+      "type": "attach",
+      "version": 2,
+      "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "cols": 80,
+      "rows": 24
+    },
+    "hex": "0000003f50025a3b0a0f666978747572652d73657373696f6e122061616161616161616161616161616161616161616161616161616161616161611a04085010182802"
+  },
+  {
+    "name": "terminate",
+    "message": {
+      "type": "terminate"
+    },
+    "hex": "000000038a0100"
+  },
+  {
+    "name": "detached",
+    "message": {
+      "type": "detached"
+    },
+    "hex": "000000059201020801"
+  },
+  {
+    "name": "terminated",
+    "message": {
+      "type": "terminated"
+    },
+    "hex": "000000059201020803"
+  },
+  {
+    "name": "ping",
+    "message": {
+      "type": "ping"
+    },
+    "hex": "00000003a20100"
+  },
+  {
+    "name": "pong",
+    "message": {
+      "type": "pong"
+    },
+    "hex": "00000003aa0100"
+  }
+]

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { Decoder, encode } from '../src/index.ts';
-const fixtures = JSON.parse(readFileSync(new URL('../fixtures/v1.json', import.meta.url)));
+const fixtures = JSON.parse(readFileSync(new URL('../fixtures/v2.json', import.meta.url)));
 
 test('shared Go/TypeScript fixtures decode byte by byte and re-encode', () => {
   for (const fixture of fixtures) {
@@ -29,4 +29,9 @@ test('invalid lengths poison the decoder and dimensions are bounded', () => {
   assert.throws(() => decoder.push(new Uint8Array()), /failed/);
   assert.throws(() => encode({type:'resize', cols:0, rows:24}), /resize/);
   assert.throws(() => encode({type:'input', data:new Uint8Array(65537)}), /bytes/);
+});
+
+test('v1 reserved fields cannot be interpreted as a v2 payload',()=>{
+ const legacy=JSON.parse(readFileSync(new URL('../fixtures/v1.json',import.meta.url)));
+ for(const fixture of legacy)assert.throws(()=>new Decoder().push(Buffer.from(fixture.hex,'hex')),/Unsupported/);
 });

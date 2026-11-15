@@ -27,7 +27,7 @@ func TestBrowserTerminal(t *testing.T) {
 		}
 	}
 	dm := integration.RunDERPAndSTUN(t, logger.Discard, "127.0.0.1")
-	server, err := New(Options{Workspace: workspace, Shell: "/bin/sh", AllowDevToken: true, Region: dm.Regions[1]})
+	server, err := New(Options{Backend: "ephemeral", Workspace: workspace, Shell: "/bin/sh", AllowDevToken: true, Region: dm.Regions[1]})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,7 +22,7 @@ const testToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func testAgent(t *testing.T, shell string) *Agent {
 	t.Helper()
-	a, err := New(Options{Workspace: t.TempDir(), Shell: shell, AllowDevToken: true, Token: testToken})
+	a, err := New(Options{Backend: "ephemeral", Workspace: t.TempDir(), Shell: shell, AllowDevToken: true, Token: testToken})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,8 +75,8 @@ func receive(t *testing.T, conn net.Conn) protocol.Message {
 }
 func attach(t *testing.T, conn net.Conn) {
 	t.Helper()
-	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: testToken, Cols: 80, Rows: 24})
-	if got := receive(t, conn); got.Type != "ready" || got.Version != 1 {
+	send(t, conn, protocol.Message{Type: "attach", Version: protocol.Version, Token: testToken, Cols: 80, Rows: 24})
+	if got := receive(t, conn); got.Type != "ready" || got.Version != protocol.Version {
 		t.Fatalf("not ready: %+v", got)
 	}
 }
@@ -89,7 +89,7 @@ func TestUnauthorizedCannotStartShell(t *testing.T) {
 	}
 	a := testAgent(t, shell)
 	conn, _ := connect(t, a)
-	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: strings.Repeat("b", 43), Cols: 80, Rows: 24})
+	send(t, conn, protocol.Message{Type: "attach", Version: protocol.Version, Token: strings.Repeat("b", 43), Cols: 80, Rows: 24})
 	if got := receive(t, conn); got.Type != "error" || got.Error != "unauthorized" {
 		t.Fatalf("unauthorized response: %+v", got)
 	}
@@ -104,7 +104,7 @@ func TestInvalidGrantNeverStartsShell(t *testing.T) {
 	if err := os.WriteFile(shell, []byte("#!/bin/sh\ntouch '"+marker+"'\nexec /bin/sh -i\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	a, err := New(Options{
+	a, err := New(Options{Backend: "ephemeral",
 		Workspace: t.TempDir(),
 		Shell:     shell,
 		Grants:    NewGrantVerifier("agent1", "grant-key-material"), SessionID: "sess1", CheckAccess: func(context.Context, string, string) error { return nil },
@@ -113,7 +113,7 @@ func TestInvalidGrantNeverStartsShell(t *testing.T) {
 		t.Fatal(err)
 	}
 	conn, _ := connect(t, a)
-	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: testToken, Cols: 80, Rows: 24})
+	send(t, conn, protocol.Message{Type: "attach", Version: protocol.Version, Token: testToken, Cols: 80, Rows: 24})
 	if got := receive(t, conn); got.Type != "error" || got.Error != "unauthorized" {
 		t.Fatalf("dev token against grants-only agent: %+v", got)
 	}
@@ -123,7 +123,7 @@ func TestInvalidGrantNeverStartsShell(t *testing.T) {
 
 	conn2, _ := connect(t, a)
 	grant := EncodeGrant("agent1", "grant-key-material", "sess1", "nonce1", time.Now().Add(time.Minute).Unix())
-	send(t, conn2, protocol.Message{Type: "attach", Version: 1, Token: grant, Cols: 80, Rows: 24})
+	send(t, conn2, protocol.Message{Type: "attach", Version: protocol.Version, Token: grant, Cols: 80, Rows: 24})
 	if got := receive(t, conn2); got.Type != "ready" {
 		t.Fatalf("valid grant: %+v", got)
 	}
@@ -200,9 +200,9 @@ func TestDisconnectKillsAndReapsShell(t *testing.T) {
 
 func TestInvalidHandshakeAndResize(t *testing.T) {
 	for _, hello := range []protocol.Message{
-		{Type: "attach", Version: 2, Token: testToken, Cols: 80, Rows: 24},
-		{Type: "attach", Version: 1, Token: testToken, Cols: 0, Rows: 24},
-		{Type: "attach", Version: 1, Token: testToken, Cols: 80, Rows: 24, Term: "bad\x1b"},
+		{Type: "attach", Version: 99, Token: testToken, Cols: 80, Rows: 24},
+		{Type: "attach", Version: protocol.Version, Token: testToken, Cols: 0, Rows: 24},
+		{Type: "attach", Version: protocol.Version, Token: testToken, Cols: 80, Rows: 24, Term: "bad\x1b"},
 	} {
 		a := testAgent(t, "/bin/sh")
 		conn, _ := connect(t, a)
@@ -229,16 +229,16 @@ func TestInvalidHandshakeAndResize(t *testing.T) {
 
 func TestOptionsValidation(t *testing.T) {
 	for _, opts := range []Options{
-		{Workspace: "", Shell: "/bin/sh"}, {Workspace: t.TempDir(), Shell: "/not/a/shell"},
-		{Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: "short"}, {Workspace: t.TempDir(), Shell: "/bin/sh", Port: -1},
-		{Workspace: t.TempDir(), Shell: "/bin/sh", MaxConnections: -1},
+		{Backend: "ephemeral", Workspace: "", Shell: "/bin/sh"}, {Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/not/a/shell"},
+		{Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh", AllowDevToken: true, Token: "short"}, {Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh", Port: -1},
+		{Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh", MaxConnections: -1},
 	} {
 		if _, err := New(opts); err == nil {
 			t.Fatal("invalid options accepted")
 		}
 	}
 	a := testAgent(t, "/bin/sh")
-	b, err := New(Options{Workspace: a.opts.Workspace, Shell: "/bin/sh", AllowDevToken: true})
+	b, err := New(Options{Backend: "ephemeral", Workspace: a.opts.Workspace, Shell: "/bin/sh", AllowDevToken: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,10 +269,10 @@ func TestRunBindingAndOnlineDenial(t *testing.T) {
 }
 
 func TestNoImplicitDevelopmentAuthentication(t *testing.T) {
-	if _, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh"}); err == nil {
+	if _, err := New(Options{Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh"}); err == nil {
 		t.Fatal("implicit token fallback")
 	}
-	if _, err := New(Options{Workspace: t.TempDir(), Shell: "/bin/sh", Token: testToken}); err == nil {
+	if _, err := New(Options{Backend: "ephemeral", Workspace: t.TempDir(), Shell: "/bin/sh", Token: testToken}); err == nil {
 		t.Fatal("implicit dev token enable")
 	}
 }
@@ -290,7 +290,7 @@ func TestLiveConnectionClosesOnOnlineRevocation(t *testing.T) {
 		return nil
 	}
 	conn, _ := connect(t, a)
-	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: EncodeGrant("agent", "key", "run", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
+	send(t, conn, protocol.Message{Type: "attach", Version: protocol.Version, Token: EncodeGrant("agent", "key", "run", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
 	if m := receive(t, conn); m.Type != "ready" {
 		t.Fatal("not ready")
 	}
@@ -344,7 +344,7 @@ func TestRunSessionLeaseUsesGrantedSessionID(t *testing.T) {
 		return nil
 	}
 	conn, _ := connect(t, a)
-	send(t, conn, protocol.Message{Type: "attach", Version: 1, Token: EncodeGrant("agent", "key", "child-session", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
+	send(t, conn, protocol.Message{Type: "attach", Version: protocol.Version, Token: EncodeGrant("agent", "key", "child-session", "nonce", time.Now().Unix()+60), Cols: 80, Rows: 24})
 	if got := receive(t, conn); got.Type != "ready" {
 		t.Fatal("session not ready")
 	}

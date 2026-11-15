@@ -29,20 +29,20 @@ const credentials = { address:'private-address', token:'a'.repeat(43) };
 test('handshakes before input, forwards Unicode/binary bytes, coalesces resize, reports exit', async () => {
   const h=setup(),states=[];
   const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport,onState:s=>states.push(s)});
-  await tick();assert.equal(h.sent[0].type,'attach');assert.equal(h.handlers.data,undefined);
-  h.push({type:'ready',version:1});await tick();
+  await tick();assert.equal(h.sent[0].type,'create');assert.equal(h.handlers.data,undefined);
+  h.push({type:'ready',version:2});await tick();
   h.handlers.data('İ\r');h.handlers.binary('\xff');
   h.handlers.resize({cols:90,rows:30});h.handlers.resize({cols:100,rows:40,colsChanged:true,rowsChanged:true});await tick();
   assert.deepEqual(h.sent.filter(x=>x.type==='input').map(x=>Array.from(x.data)),[Array.from(new TextEncoder().encode('İ\r')),[255]]);
   assert.equal(h.sent.filter(x=>x.type==='resize').length,1);
-  h.push({type:'output',data:new Uint8Array([0,255,27])},{type:'exit',code:7});
+  h.push({type:'output',data:new Uint8Array([0,255,27])},{type:'exit',code:7,codeKnown:true});
   assert.deepEqual(await session.done,{state:'exited',code:7});assert.equal(h.closed(),true);
   assert.deepEqual(Object.keys(h.handlers),[]);assert.equal(states.at(-1).code,7);
 });
 
 test('output parsing applies backpressure and disposal releases a pending terminal write', async () => {
   const h=setup({holdOutput:true});const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport});
-  await tick();h.push({type:'ready',version:1});await tick();
+  await tick();h.push({type:'ready',version:2});await tick();
   h.push({type:'output',data:new Uint8Array([1])});await tick();const reads=h.reads();await tick();assert.equal(h.reads(),reads);
   session.dispose();assert.deepEqual(await session.done,{state:'disposed'});h.consume();
 });
@@ -50,7 +50,7 @@ test('output parsing applies backpressure and disposal releases a pending termin
 test('rejected handshake fails without enabling input or exposing credential text', async () => {
   const h=setup();const states=[];const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport,onState:s=>states.push(s)});
   await tick();h.push({type:'error',error:'unauthorized'});
-  assert.deepEqual(await session.done,{state:'failed'});assert.equal(h.handlers.data,undefined);
+  assert.deepEqual(await session.done,{state:'failed',reason:'unauthorized',retryable:undefined});assert.equal(h.handlers.data,undefined);
   assert.doesNotMatch(JSON.stringify(states),/private-address|aaaa/);
 });
 
@@ -69,7 +69,7 @@ test('missing handshake times out', async () => {
 
 test('large input is split in order and EOF is distinct from shell exit', async () => {
   const h=setup();const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport});
-  await tick();h.push({type:'ready',version:1});await tick();
+  await tick();h.push({type:'ready',version:2});await tick();
   h.handlers.data('x'.repeat(70000));await tick();
   const frames=h.sent.filter(message=>message.type==='input');
   assert.deepEqual(frames.map(message=>message.data.length),[65536,4464]);
@@ -84,4 +84,22 @@ test('connection deadline includes client creation and closes late resources', a
  assert.deepEqual(await session.done,{state:'failed'});
  finish({close:async()=>{closed++;},dial:async()=>{throw Error('must not dial after timeout');}});
  await tick();assert(closed>0);
+});
+
+test('a silent relay triggers bounded disconnect without replaying input',async()=>{
+ const h=setup();const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport,heartbeatMs:5,silenceTimeoutMs:15});
+ await tick();h.push({type:'ready',version:2});await tick();
+ h.handlers.data('uncertain input');
+ assert.deepEqual(await session.done,{state:'disconnected'});
+ assert.equal(h.sent.filter(m=>m.type==='input').length,1);
+ assert(h.sent.some(m=>m.type==='ping'));
+});
+
+test('explicit detach and terminate use distinct typed operations',async()=>{
+ const h=setup();const session=attachRemoteSession({terminal:h.terminal},credentials,{transport:h.transport});
+ await tick();h.push({type:'ready',version:2});await tick();session.detach();
+ assert.equal((await session.done).state,'detached');assert(h.sent.some(m=>m.type==='detach'));assert(!h.sent.some(m=>m.type==='terminate'));
+ const other=setup();const end=attachRemoteSession({terminal:other.terminal},credentials,{transport:other.transport});
+ await tick();other.push({type:'ready',version:2});await tick();end.terminate();await tick();
+ assert(other.sent.some(m=>m.type==='terminate'));other.push({type:'terminated'});assert.equal((await end.done).state,'terminated');
 });

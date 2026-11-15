@@ -23,13 +23,22 @@ type process struct {
 
 func startProcess(opts Options, term string, cols, rows int) (*process, error) {
 	cmd := exec.Command(opts.Shell, "-i")
-	cmd.Dir = opts.Workspace
-	for _, entry := range cmd.Environ() {
-		if !strings.HasPrefix(entry, "TERM=") && !strings.HasPrefix(entry, "WEBSSH=") {
-			cmd.Env = append(cmd.Env, entry)
+	return startCommand(cmd, opts.Workspace, term, cols, rows)
+}
+
+func cleanEnvironment(term string) []string {
+	var env []string
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "TERM=") && !strings.HasPrefix(entry, "WEBSSH=") && !strings.HasPrefix(entry, "TMUX=") && !strings.HasPrefix(entry, "TMUX_PANE=") {
+			env = append(env, entry)
 		}
 	}
-	cmd.Env = append(cmd.Env, "TERM="+term, "WEBSSH=1")
+	return append(env, "TERM="+term, "WEBSSH=1")
+}
+
+func startCommand(cmd *exec.Cmd, workspace, term string, cols, rows int) (*process, error) {
+	cmd.Dir = workspace
+	cmd.Env = cleanEnvironment(term)
 	file, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 	if err != nil {
 		return nil, err

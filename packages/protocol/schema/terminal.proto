@@ -1,17 +1,59 @@
 syntax = "proto3";
-package webssh.protocol.v1;
+package webssh.protocol.v2;
 option go_package = "github.com/amar-jay/webssh/packages/protocol/gen;protocolpb";
 
-// One envelope per length-prefixed TCP frame. The agent validates which fields
-// are legal for each type and direction. Never reuse field numbers.
+// Protocol v1 used untyped fields 1..9. They must never be reused.
 message TerminalMessage {
-  string type = 1; // attach, ready, input, output, resize, detach, exit, error
-  uint32 version = 2;
-  string token = 3;
-  uint32 cols = 4;
-  uint32 rows = 5;
-  string term = 6;
-  bytes data = 7;
-  int32 code = 8;
-  string error = 9;
+  reserved 1 to 9;
+  reserved "type", "token", "cols", "rows", "term", "data", "code", "error";
+  uint32 version = 10;
+  oneof payload {
+    OpenRequest open = 11;
+    Ready ready = 12;
+    Bytes input = 13;
+    Bytes output = 14;
+    Size resize = 15;
+    Detach detach = 16;
+    Terminate terminate = 17;
+    Lifecycle lifecycle = 18;
+    Failure failure = 19;
+    Ping ping = 20;
+    Pong pong = 21;
+  }
 }
+enum Capability { CAPABILITY_UNSPECIFIED = 0; PERSISTENCE = 1; RECONNECT = 2; TERMINATE = 3; }
+enum Backend { BACKEND_UNSPECIFIED = 0; TMUX = 1; EPHEMERAL = 2; }
+message Size { uint32 cols = 1; uint32 rows = 2; }
+message OpenRequest {
+  enum Mode { MODE_UNSPECIFIED = 0; CREATE_OR_ATTACH = 1; ATTACH_EXISTING = 2; }
+  string session_id = 1;
+  string token = 2;
+  Size size = 3;
+  string term = 4;
+  Mode mode = 5;
+  repeated Capability capabilities = 6;
+}
+message Ready { string session_id = 1; Backend backend = 2; repeated Capability capabilities = 3; }
+message Bytes { bytes data = 1; }
+message Detach {}
+message Terminate {}
+message Lifecycle {
+  enum State { STATE_UNSPECIFIED = 0; DETACHED = 1; ENDED = 2; TERMINATED = 3; }
+  State state = 1;
+  int32 exit_code = 2;
+  bool exit_code_known = 3;
+}
+message Failure {
+  enum Code {
+    CODE_UNSPECIFIED = 0; UNAUTHORIZED = 1; SESSION_BUSY = 2; SESSION_ENDED = 3;
+    SESSION_NOT_FOUND = 4; INVALID_HANDSHAKE = 5; UNSUPPORTED_PROTOCOL = 6;
+    INVALID_ATTACH = 7; INVALID_TERMINAL = 8; SHELL_START_FAILED = 9;
+    INVALID_SESSION_MESSAGE = 10; SHELL_IO_CLOSED = 11;
+    BACKEND_UNAVAILABLE = 12; CAPABILITY_MISMATCH = 13;
+  }
+  Code code = 1;
+  bool retryable = 2;
+}
+
+message Ping {}
+message Pong {}
