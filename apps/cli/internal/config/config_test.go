@@ -61,6 +61,53 @@ func TestLoadRejectsInvalidDocuments(t *testing.T) {
 	}
 }
 
+func TestTmuxConfigUsesLocalFileOrNone(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	c := Defaults()
+	if c.TmuxConfig != "default" {
+		t.Fatalf("default setting: %q", c.TmuxConfig)
+	}
+	file, err := c.TmuxFile()
+	if err != nil || file != "" {
+		t.Fatalf("missing local config: %q %v", file, err)
+	}
+	local := filepath.Join(home, ".tmux.conf")
+	if err := os.WriteFile(local, []byte("set -g history-limit 1000\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	file, err = c.TmuxFile()
+	if err != nil || file != local {
+		t.Fatalf("local config: %q %v", file, err)
+	}
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	preferred := filepath.Join(xdg, "tmux", "tmux.conf")
+	if err := os.MkdirAll(filepath.Dir(preferred), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(preferred, []byte("set -g mouse on\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	file, err = Config{Version: 1, MachineName: "m", Shell: "/bin/sh"}.TmuxFile()
+	if err != nil || file != preferred {
+		t.Fatalf("xdg config: %q %v", file, err)
+	}
+	none := Config{Version: 1, MachineName: "m", Shell: "/bin/sh", TmuxConfig: "none"}
+	if file, err = none.TmuxFile(); err != nil || file != "" {
+		t.Fatalf("none: %q %v", file, err)
+	}
+	explicit := Config{Version: 1, MachineName: "m", Shell: "/bin/sh", TmuxConfig: local}
+	if file, err = explicit.TmuxFile(); err != nil || file != local {
+		t.Fatalf("explicit: %q %v", file, err)
+	}
+	missing := Config{Version: 1, MachineName: "m", Shell: "/bin/sh", TmuxConfig: filepath.Join(home, "missing.conf")}
+	if _, err = missing.TmuxFile(); err == nil {
+		t.Fatal("accepted a missing tmux config path")
+	}
+}
+
 func TestPathUsesHomeNotXDG(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

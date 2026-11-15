@@ -24,7 +24,7 @@ func tmuxManager(t *testing.T) (*SessionManager, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager, err := OpenSessionManager(base, "owner/agent/workspace")
+	manager, err := OpenSessionManager(base, "owner/agent/workspace", "")
 	if err != nil {
 		os.RemoveAll(base)
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func TestTmuxPreservesWorkAcrossDetachRestartAndTermination(t *testing.T) {
 	// A new manager/process incarnation recovers only the owned ledger and socket.
 	runID := m.RunID()
 	m.Close()
-	recovered, err := OpenSessionManager(base, "owner/agent/workspace")
+	recovered, err := OpenSessionManager(base, "owner/agent/workspace", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestTmuxPreservesWorkAcrossDetachRestartAndTermination(t *testing.T) {
 
 func TestTmuxRecoveryRejectsUnrelatedSessionsAndDuplicateAgents(t *testing.T) {
 	m, base := tmuxManager(t)
-	if other, err := OpenSessionManager(base, "owner/agent/workspace"); err == nil {
+	if other, err := OpenSessionManager(base, "owner/agent/workspace", ""); err == nil {
 		other.Close()
 		t.Fatal("duplicate workspace agent acquired lock")
 	}
@@ -213,7 +213,7 @@ func TestTmuxRecoveryRejectsUnrelatedSessionsAndDuplicateAgents(t *testing.T) {
 
 func TestTmuxMissingReportsInstructionsWithoutFallback(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	if _, err := OpenSessionManager(t.TempDir(), "scope"); err == nil || !strings.Contains(err.Error(), "--backend ephemeral") {
+	if _, err := OpenSessionManager(t.TempDir(), "scope", ""); err == nil || !strings.Contains(err.Error(), "--backend ephemeral") {
 		t.Fatal("missing tmux did not give explicit setup instructions")
 	}
 }

@@ -3,6 +3,7 @@ import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
 import { readSessionCookie, verifySession } from '#lib/auth/session.js';
 import { ownerStub } from '#lib/state/client.js';
 import { runtimeEnv } from '#lib/cloudflare/runtime.js';
+import { DEV_COOKIE, devLoginAllowed, devUser } from '#lib/auth/dev-login.js';
 
 export const handle: Handle = async (input) => {
   const response = await authenticate(input);
@@ -19,6 +20,10 @@ const authenticate: Handle = async ({ event, resolve }) => {
   event.locals.user = null;
   if (!['GET', 'HEAD', 'OPTIONS'].includes(event.request.method) && event.request.headers.get('cookie')?.includes('webssh_session=') && event.request.headers.get('origin') !== event.url.origin) {
     return new Response('Forbidden', { status: 403 });
+  }
+  if (devLoginAllowed(event.url) && event.cookies.get(DEV_COOKIE) === '1') {
+    event.locals.user = devUser();
+    return resolve(event);
   }
   const env = await runtimeEnv(event.platform?.env as AuthEnv | undefined);
   if (!env?.WEBSSH_STATE || !env.SESSION_SECRET) {

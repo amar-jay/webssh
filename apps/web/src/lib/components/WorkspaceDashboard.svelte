@@ -2,11 +2,7 @@
   import { Dialog } from "bits-ui";
   import { onMount } from "svelte";
   import { invalidateAll } from "$app/navigation";
-  import type {
-    AgentRecord,
-    RunRecord,
-    TerminalSessionRecord,
-  } from "@webssh/state/types";
+  import type { AgentRecord, RunRecord } from "@webssh/state/types";
   import CommandBlock from "./CommandBlock.svelte";
   import Icon from "./Icon.svelte";
   import {
@@ -20,13 +16,11 @@
   let {
     agents,
     runs,
-    sessions,
     unavailable,
     message,
   }: {
     agents: AgentRecord[];
     runs: RunRecord[];
-    sessions: TerminalSessionRecord[];
     unavailable: boolean;
     message?: string;
   } = $props();
@@ -50,13 +44,6 @@
     }, 10_000);
     return () => clearInterval(timer);
   });
-  const labels = {
-    connecting: "Ready to open",
-    active: "Active",
-    offline: "Offline",
-    ended: "Ended",
-    expired: "Expired",
-  };
 </script>
 
 <main class="pt-14 pb-[70px]">
@@ -65,9 +52,7 @@
   >
     <div>
       <p class={eyebrow}>YOUR WORKSPACE</p>
-      <h1 class="mb-3 text-3xl tracking-tight min-[721px]:text-4xl">
-        Machines & sessions.
-      </h1>
+      <h1 class="mb-3 text-3xl tracking-tight min-[721px]:text-4xl">Machines.</h1>
       <p class="mb-0 text-secondary">
         Open a running workspace, or pair a new machine.
       </p>
@@ -180,49 +165,4 @@
       </section>
     {/each}
   </div>
-  <div class="mt-8 mb-[18px] flex items-center justify-between gap-[18px]">
-    <h2 class="m-0 text-lg">Sessions</h2>
-    <span class="text-sm text-secondary max-[720px]:text-xs"
-      >Availability updates every 10 seconds</span
-    >
-  </div>
-  {#if !sessions.length}<p
-      class="rounded-xl border border-line bg-surface p-6 text-secondary"
-    >
-      No sessions yet. Run <code>webssh serve .</code> on a paired machine.
-    </p>{:else}<div class="overflow-hidden rounded-xl border border-line">
-      {#each sessions as session (session.terminalSessionId)}<div
-          class="flex flex-wrap items-center gap-5 border-t border-line bg-surface p-5 first:border-t-0 min-[721px]:flex-nowrap min-[721px]:px-6 min-[721px]:py-5"
-        >
-          <div class="min-w-0 flex-1 wrap-anywhere">
-            <strong>{session.workspaceLabel || "Workspace"}</strong>
-            <p class="mt-1.5 mb-0 text-sm text-secondary">
-              {agents.find((a) => a.agentId === session.agentId)?.machineName ||
-                "Machine"}
-            </p>
-          </div>
-          <span class={pill}
-            >{session.terminationRequested
-              ? "Termination pending"
-              : labels[session.status]}</span
-          >
-          <div class="flex w-full items-center gap-2.5 min-[721px]:w-auto">
-            {#if !["ended", "expired"].includes(session.status)}<a
-                class={buttonSubtle}
-                href={`/s/${session.terminalSessionId}`}>Open</a
-              >
-              <form method="POST" action="?/end">
-                <input
-                  type="hidden"
-                  name="sessionId"
-                  value={session.terminalSessionId}
-                /><button class={buttonQuiet} type="submit">Terminate</button>
-              </form>{/if}
-          </div>
-        </div>{/each}
-    </div>{/if}
-  <p class="text-sm text-secondary">
-    Offline means the agent hasn’t checked in. It does not confirm that a shell
-    has exited.
-  </p>
 </main>

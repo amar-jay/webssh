@@ -28,11 +28,16 @@
       class="order-3 flex w-full gap-6 text-sm font-medium text-secondary min-[721px]:order-none min-[721px]:w-auto min-[721px]:gap-7"
       aria-label="Main navigation"
     >
-      <a
-        class="p-0 hover:text-ink aria-[current=page]:text-ink min-[721px]:py-3"
-        aria-current={page.url.pathname === "/" ? "page" : undefined}
-        href="/">Overview</a
-      >
+      {#if signedIn}<a
+          class="p-0 hover:text-ink aria-[current=page]:text-ink min-[721px]:py-3"
+          aria-current={page.url.pathname === "/dashboard" ? "page" : undefined}
+          href="/dashboard">Dashboard</a
+        >
+        <a
+          class="p-0 hover:text-ink aria-[current=page]:text-ink min-[721px]:py-3"
+          aria-current={page.url.pathname === "/sessions" ? "page" : undefined}
+          href="/sessions">Sessions</a
+        >{/if}
       <a
         class="p-0 hover:text-ink aria-[current=page]:text-ink min-[721px]:py-3"
         aria-current={page.url.pathname === "/pair" ? "page" : undefined}

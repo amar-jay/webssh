@@ -2,7 +2,8 @@
   import CommandBlock from './CommandBlock.svelte';
   import Icon from './Icon.svelte';
   import { installCommand } from '#lib/install.js';
-  let { error }: { error?: string | null } = $props();
+  let { signedIn = false, error }: { signedIn?: boolean; error?: string | null } =
+    $props();
 </script>
 
 <div class="landing relative isolate min-h-svh overflow-hidden bg-canvas px-5 pt-5 font-sans text-ink md:px-10 md:pt-8">
@@ -20,7 +21,7 @@
       <a class="hover:text-ink" href="/login">Serve</a>
       <a class="inline-flex items-center gap-1 hover:text-ink" href="https://github.com/amar-jay/webssh">GitHub <Icon name="arrow-up-right" class="size-3.5" /></a>
     </nav>
-    <a class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-canvas hover:bg-[#9ab8ff]" href="/login">Sign in <Icon name="log-in" class="size-3.5" /></a>
+    <a class="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-canvas hover:bg-[#9ab8ff]" href={signedIn ? "/dashboard" : "/login"}>{signedIn ? "Dashboard" : "Sign in"} <Icon name={signedIn ? "dashboard" : "log-in"} class="size-3.5" /></a>
   </header>
 
   <main class="mx-auto flex max-w-[820px] flex-col items-center pt-16 pb-16 text-center md:pt-24">

@@ -52,8 +52,8 @@
             ><p class="mb-0 pb-3 text-sm text-secondary">
               Pairing saves your machine’s credentials. You can start the agent
               with <code class="text-accent">webssh serve .</code>. Open the URL
-              printed by serve and sign in with the same GitHub account. Use the
-              overview to open or end sessions.
+              printed by serve and sign in with the same GitHub account. Open a
+              workspace from the dashboard, and end it from Sessions.
             </p></Accordion.Content
           >
         </Accordion.Item>

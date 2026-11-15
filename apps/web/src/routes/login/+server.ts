@@ -2,8 +2,15 @@ import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
 import { runtimeEnv } from '#lib/cloudflare/runtime.js';
+import { DEV_COOKIE, devLoginAllowed } from '#lib/auth/dev-login.js';
 
 export const GET: RequestHandler = async ({ url, platform, cookies }) => {
+  if (devLoginAllowed(url)) {
+    const next = url.searchParams.get('next') || '/dashboard';
+    const safeNext = next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/dashboard';
+    cookies.set(DEV_COOKIE, '1', { path: '/', httpOnly: true, sameSite: 'lax', secure: false, maxAge: 14 * 24 * 60 * 60 });
+    throw redirect(303, safeNext);
+  }
   const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
   if (!env) throw redirect(303, '/');
   let auth;
@@ -20,7 +27,7 @@ export const GET: RequestHandler = async ({ url, platform, cookies }) => {
     scope: 'read:user',
     state
   });
-  const next = url.searchParams.get('next') || '/';
+  const next = url.searchParams.get('next') || '/dashboard';
   const safeNext = next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/';
   cookies.set(auth.publicOrigin.startsWith('https:') ? '__Host-webssh_oauth' : 'webssh_oauth', JSON.stringify({ state, next: safeNext }), {
     path: '/',

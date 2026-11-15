@@ -41,11 +41,11 @@ type sessionLedger struct {
 // SessionManager owns persistent processes independently of transport clients.
 // The dedicated socket, private ledger, and per-session random marker must agree.
 type SessionManager struct {
-	mu                sync.Mutex
-	dir, socket, tmux string
-	lock              *os.File
-	ledger            sessionLedger
-	controllers       map[string]bool
+	mu                      sync.Mutex
+	dir, socket, tmux, conf string
+	lock                    *os.File
+	ledger                  sessionLedger
+	controllers             map[string]bool
 }
 
 func randomHandle() (string, error) {
@@ -54,7 +54,7 @@ func randomHandle() (string, error) {
 	return hex.EncodeToString(b[:]), err
 }
 
-func OpenSessionManager(base, scope string) (*SessionManager, error) {
+func OpenSessionManager(base, scope, tmuxConfig string) (*SessionManager, error) {
 	tmux, err := exec.LookPath("tmux")
 	if err != nil {
 		return nil, errors.New("tmux is required for durable sessions; install tmux with your system package manager, or explicitly use --backend ephemeral")
@@ -78,7 +78,7 @@ func OpenSessionManager(base, scope string) (*SessionManager, error) {
 		lock.Close()
 		return nil, errors.New("this workspace already has a running agent")
 	}
-	m := &SessionManager{dir: dir, socket: filepath.Join(dir, "tmux.sock"), tmux: tmux, lock: lock, controllers: map[string]bool{}}
+	m := &SessionManager{dir: dir, socket: filepath.Join(dir, "tmux.sock"), tmux: tmux, conf: tmuxConfig, lock: lock, controllers: map[string]bool{}}
 	if len(m.socket) > 100 {
 		m.Close()
 		return nil, errors.New("session socket path is too long; choose a shorter --state-dir")
@@ -163,6 +163,13 @@ func ownedName(id string) string {
 	s := sha256.Sum256([]byte(id))
 	return "webssh-" + hex.EncodeToString(s[:12])
 }
+func (m *SessionManager) tmuxPrefix() []string {
+	file := "/dev/null"
+	if m.conf != "" {
+		file = m.conf
+	}
+	return []string{"-S", m.socket, "-f", file}
+}
 func (m *SessionManager) command(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -174,7 +181,7 @@ func (m *SessionManager) commandContext(ctx context.Context, args ...string) ([]
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	cmd := exec.CommandContext(ctx, m.tmux, append([]string{"-S", m.socket, "-f", "/dev/null"}, args...)...)
+	cmd := exec.CommandContext(ctx, m.tmux, append(m.tmuxPrefix(), args...)...)
 	cmd.Env = cleanEnvironment("xterm-256color")
 	cmd.WaitDelay = 250 * time.Millisecond
 	return cmd.Output()
@@ -264,7 +271,7 @@ func (m *SessionManager) AttachContext(ctx context.Context, id string, create bo
 		return nil, errors.New("backend_unavailable")
 	}
 	// No -d: a new client must never silently take over another controller.
-	cmd := exec.Command(m.tmux, "-S", m.socket, "-f", "/dev/null", "attach-session", "-t", "="+e.Name)
+	cmd := exec.Command(m.tmux, append(m.tmuxPrefix(), "attach-session", "-t", "="+e.Name)...)
 	return startCommand(cmd, opts.Workspace, term, cols, rows)
 }
 

@@ -142,7 +142,7 @@ func (m model) View() tea.View {
 	b.WriteString(accentStyle.Bold(true).Render("WebSSH") + mutedStyle.Render(" / configure this machine") + "\n\n")
 	if m.existing {
 		fmt.Fprintf(&b, "%s\n  %s\n\n", successStyle.Render("✓ Existing configuration found"), mutedStyle.Render(m.path))
-		fmt.Fprintf(&b, "%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell))
+		fmt.Fprintf(&b, "%s %s\n%s %s\n%s %s\n\n", mutedStyle.Render("Machine name:"), answerStyle.Render(m.cfg.MachineName), mutedStyle.Render("Shell executable:"), answerStyle.Render(m.cfg.Shell), mutedStyle.Render("Tmux config:"), answerStyle.Render(m.cfg.TmuxConfig))
 		switch {
 		case m.used:
 			b.WriteString(successStyle.Render("✓ Using existing configuration.") + "\n")

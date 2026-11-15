@@ -16,6 +16,9 @@ type Config struct {
 	Version     int    `toml:"version"`
 	MachineName string `toml:"machine_name"`
 	Shell       string `toml:"shell"`
+	// TmuxConfig is "default", "none", or a file path.
+	// "default" uses the local tmux config when one exists, and no config otherwise.
+	TmuxConfig string `toml:"tmux_config,omitempty"`
 }
 
 func Defaults() Config {
@@ -27,7 +30,76 @@ func Defaults() Config {
 	if shell == "" {
 		shell = "/bin/sh"
 	}
-	return Config{Version: 1, MachineName: name, Shell: shell}
+	return Config{Version: 1, MachineName: name, Shell: shell, TmuxConfig: "default"}
+}
+
+// LocalTmuxConfig returns the first user tmux config tmux would read, or "" when none exists.
+func LocalTmuxConfig() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", nil
+	}
+	var candidates []string
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidates = append(candidates, filepath.Join(xdg, "tmux", "tmux.conf"))
+	}
+	candidates = append(candidates,
+		filepath.Join(home, ".config", "tmux", "tmux.conf"),
+		filepath.Join(home, ".tmux.conf"),
+	)
+	seen := map[string]bool{}
+	for _, path := range candidates {
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		info, err := os.Stat(path)
+		if err == nil && info.Mode().IsRegular() {
+			return path, nil
+		}
+	}
+	return "", nil
+}
+
+// TmuxFile resolves tmux_config. An empty result means start tmux with no config file.
+func (c Config) TmuxFile() (string, error) {
+	switch strings.TrimSpace(c.TmuxConfig) {
+	case "", "default":
+		return LocalTmuxConfig()
+	case "none":
+		return "", nil
+	}
+	path, err := expandPath(c.TmuxConfig)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("tmux config %s is not available", path)
+	}
+	return path, nil
+}
+
+func expandPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" || strings.ContainsFunc(path, unicode.IsControl) {
+		return "", errors.New("tmux config path is invalid")
+	}
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("find home directory: %w", err)
+		}
+		if path == "~" {
+			path = home
+		} else {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+	if !filepath.IsAbs(path) {
+		return "", errors.New("tmux config path must be absolute")
+	}
+	return filepath.Clean(path), nil
 }
 
 func Path() (string, error) {
@@ -41,6 +113,13 @@ func Path() (string, error) {
 func (c Config) Validate() error {
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported config version %d", c.Version)
+	}
+	switch strings.TrimSpace(c.TmuxConfig) {
+	case "", "default", "none":
+	default:
+		if _, err := expandPath(c.TmuxConfig); err != nil {
+			return err
+		}
 	}
 	for _, field := range []struct{ name, value string }{{"machine name", c.MachineName}, {"shell", c.Shell}} {
 		if strings.TrimSpace(field.value) == "" {

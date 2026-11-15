@@ -13,7 +13,7 @@ var sessionHandle = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 type SessionManager struct{}
 
 func randomHandle() (string, error) { return "", errors.New("PTY is unsupported on this platform") }
-func OpenSessionManager(string, string) (*SessionManager, error) {
+func OpenSessionManager(string, string, string) (*SessionManager, error) {
 	return nil, errors.New("tmux sessions require Linux or macOS")
 }
 func (*SessionManager) Close()                         {}

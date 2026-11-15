@@ -66,7 +66,11 @@ func runSessions(ctx context.Context, cmd *cli.Command) error {
 	if stateDir == "" {
 		stateDir = filepath.Join(filepath.Dir(credPath), "sessions")
 	}
-	manager, err := agent.OpenSessionManager(stateDir, managerScope(creds, cfg, workspace))
+	tmuxFile, err := cfg.TmuxFile()
+	if err != nil {
+		return err
+	}
+	manager, err := agent.OpenSessionManager(stateDir, managerScope(creds, cfg, workspace), tmuxFile)
 	if err != nil {
 		return err
 	}

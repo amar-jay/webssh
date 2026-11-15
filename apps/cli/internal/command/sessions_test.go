@@ -38,7 +38,7 @@ func TestSessionCleanupRequiresWorkspaceLockAndExactOwnedID(t *testing.T) {
 	}
 	base := filepath.Join(dir, "sessions")
 	scope := managerScope(creds, cfg, dir)
-	manager, err := agent.OpenSessionManager(base, scope)
+	manager, err := agent.OpenSessionManager(base, scope, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestSessionCleanupRequiresWorkspaceLockAndExactOwnedID(t *testing.T) {
 	if err := New().Run(context.Background(), args("--terminate", "cleanup-session")); err != nil {
 		t.Fatal(err)
 	}
-	reopened, err := agent.OpenSessionManager(base, scope)
+	reopened, err := agent.OpenSessionManager(base, scope, "")
 	if err != nil {
 		t.Fatal(err)
 	}

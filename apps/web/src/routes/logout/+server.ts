@@ -4,10 +4,11 @@ import { requireAuthEnv, type AuthEnv } from '#lib/auth/env.js';
 import { clearSessionCookie } from '#lib/auth/session.js';
 import { ownerStub } from '#lib/state/client.js';
 import { runtimeEnv } from '#lib/cloudflare/runtime.js';
+import { DEV_SESSION_ID, devCookie } from '#lib/auth/dev-login.js';
 
 export const POST: RequestHandler = async ({ locals, platform }) => {
   const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
-  if (env?.WEBSSH_STATE && locals.user) {
+  if (env?.WEBSSH_STATE && locals.user && locals.user.sessionId !== DEV_SESSION_ID) {
     try {
       const stub = ownerStub(env.WEBSSH_STATE as never, locals.user.ownerId);
       await stub.revokeBrowserSession(locals.user.sessionId);
@@ -21,12 +22,8 @@ export const POST: RequestHandler = async ({ locals, platform }) => {
   } catch {
     secure = true;
   }
-  return new Response(null, {
-    status: 303,
-    headers: {
-      location: '/',
-      'set-cookie': clearSessionCookie(secure),
-      'cache-control': 'no-store'
-    }
-  });
+  const headers = new Headers({ location: '/', 'cache-control': 'no-store' });
+  headers.append('set-cookie', clearSessionCookie(secure));
+  headers.append('set-cookie', devCookie(0));
+  return new Response(null, { status: 303, headers });
 };

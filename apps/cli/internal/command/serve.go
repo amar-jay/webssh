@@ -149,7 +149,11 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 			stateDir = filepath.Join(filepath.Dir(credFile), "sessions")
 		}
 		scope := managerScope(creds, cfg, workspace)
-		manager, openErr := agent.OpenSessionManager(stateDir, scope)
+		tmuxFile, tmuxErr := cfg.TmuxFile()
+		if tmuxErr != nil {
+			return tmuxErr
+		}
+		manager, openErr := agent.OpenSessionManager(stateDir, scope, tmuxFile)
 		if openErr != nil {
 			return openErr
 		}
