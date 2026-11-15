@@ -1,7 +1,7 @@
 /* Self-hosted Nerd Fonts v3.4.0 symbols. See assets/fonts/NERD-FONTS-LICENSE. */
 @font-face {
-  font-family: 'Symbols Nerd Font Mono';
-  src: url('../assets/fonts/SymbolsNerdFontMono-Regular.ttf') format('truetype');
+  font-family: "Symbols Nerd Font Mono";
+  src: url("../assets/fonts/SymbolsNerdFontMono-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;

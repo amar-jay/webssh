@@ -15,7 +15,8 @@ const problems: Record<string, string> = {
     "This session is unavailable. Open Machines to choose a workspace.",
   agent_offline:
     "This machine is offline. Waiting for the agent; shell state is unknown.",
-  session_ended: "This session has ended. Open Machines to start a new session.",
+  session_ended:
+    "This session has ended. Open Machines to start a new session.",
   session_expired:
     "This session is expired. Restart webssh serve to recover its durable workspace.",
   session_busy:
@@ -65,12 +66,13 @@ export function attachPairedSession(
   const show = (status: ConnectionStatus | null) => {
     if (!lifetime.signal.aborted) options.onStatus?.(status);
   };
-  const problem = (reason: string) => show({
-    phase: reason === "session_busy" ? "blocked" : "failed",
-    message: reason === "session_busy" ? "Session in use" : "Cannot connect",
-    detail: problems[reason] ?? "The agent rejected this connection.",
-    retryable: reason === "session_busy",
-  });
+  const problem = (reason: string) =>
+    show({
+      phase: reason === "session_busy" ? "blocked" : "failed",
+      message: reason === "session_busy" ? "Session in use" : "Cannot connect",
+      detail: problems[reason] ?? "The agent rejected this connection.",
+      retryable: reason === "session_busy",
+    });
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
       const finish = () => {
@@ -92,7 +94,14 @@ export function attachPairedSession(
         retry++
       ) {
         if (retry) {
-          show({ phase: "retrying", message: "Reconnecting", detail: "Requesting fresh authorization. No input will be replayed.", attempt: retry, maxRetries: options.maxRetries ?? 6 });
+          show({
+            phase: "retrying",
+            message: "Reconnecting",
+            detail:
+              "Requesting fresh authorization. No input will be replayed.",
+            attempt: retry,
+            maxRetries: options.maxRetries ?? 6,
+          });
           await sleep(
             (options.retryDelays ?? [500, 1000, 2000, 4000, 8000, 8000])[
               Math.min(retry - 1, (options.retryDelays?.length ?? 6) - 1)
@@ -103,7 +112,13 @@ export function attachPairedSession(
         remote?.dispose();
         let shouldRetry = true;
         try {
-          show({ phase: "connecting", message: "Resolving your workspace", ...(retry ? { attempt: retry, maxRetries: options.maxRetries ?? 6 } : {}) });
+          show({
+            phase: "connecting",
+            message: "Resolving your workspace",
+            ...(retry
+              ? { attempt: retry, maxRetries: options.maxRetries ?? 6 }
+              : {}),
+          });
           const response = await (options.fetcher ?? fetch)(
             `/api/sessions/${encodeURIComponent(sessionId)}/grant`,
             {
@@ -156,15 +171,45 @@ export function attachPairedSession(
                     readyAt = Date.now();
                     show(null);
                   } else if (state.state === "connecting") {
-                    show({ phase: "connecting", message: "Connecting to your machine", ...(retry ? { attempt: retry, maxRetries: options.maxRetries ?? 6 } : {}) });
+                    show({
+                      phase: "connecting",
+                      message: "Connecting to your machine",
+                      ...(retry
+                        ? {
+                            attempt: retry,
+                            maxRetries: options.maxRetries ?? 6,
+                          }
+                        : {}),
+                    });
                   } else if (state.state === "exited") {
-                    show({ phase: "ended", message: state.code === undefined ? "Remote session ended" : `Shell exited (${state.code})` });
+                    show({
+                      phase: "ended",
+                      message:
+                        state.code === undefined
+                          ? "Remote session ended"
+                          : `Shell exited (${state.code})`,
+                    });
                   } else if (state.state === "terminated") {
-                    show({ phase: "ended", message: "Remote session terminated" });
+                    show({
+                      phase: "ended",
+                      message: "Remote session terminated",
+                    });
                   } else if (state.state === "detached") {
-                    show({ phase: "ended", message: "Detached", detail: data.backend === "ephemeral" ? "The ephemeral shell is ending." : "Your tmux session is preserved." });
+                    show({
+                      phase: "ended",
+                      message: "Detached",
+                      detail:
+                        data.backend === "ephemeral"
+                          ? "The ephemeral shell is ending."
+                          : "Your tmux session is preserved.",
+                    });
                   } else if (state.state === "disconnected") {
-                    show({ phase: "retrying", message: "Connection lost", detail: "Shell state is unknown. Requesting fresh authorization." });
+                    show({
+                      phase: "retrying",
+                      message: "Connection lost",
+                      detail:
+                        "Shell state is unknown. Requesting fresh authorization.",
+                    });
                   }
                 },
               },
@@ -187,19 +232,32 @@ export function attachPairedSession(
               return;
             }
             if (data.backend === "ephemeral") {
-              show({ phase: "ended", message: "Ephemeral shell disconnected", detail: "Open Machines to start a new shell." });
+              show({
+                phase: "ended",
+                message: "Ephemeral shell disconnected",
+                detail: "Open Machines to start a new shell.",
+              });
               terminalExit = true;
               return;
             }
           }
         } catch {
           if (lifetime.signal.aborted) return;
-          show({ phase: "retrying", message: "Workspace unreachable", detail: "Shell state is unknown." });
+          show({
+            phase: "retrying",
+            message: "Workspace unreachable",
+            detail: "Shell state is unknown.",
+          });
         }
         if (!shouldRetry) return;
       }
       if (!lifetime.signal.aborted)
-        show({ phase: "failed", message: "Reconnect paused", detail: "Check that webssh serve is running, then press r to retry.", retryable: true });
+        show({
+          phase: "failed",
+          message: "Reconnect paused",
+          detail: "Check that webssh serve is running, then press r to retry.",
+          retryable: true,
+        });
     } finally {
       running = false;
     }

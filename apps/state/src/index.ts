@@ -1184,41 +1184,104 @@ export class WebSSHState extends DurableObject<Env> {
 
   // One-use approvals for native controllers. The hub stores no grants or descriptors.
   async startCLIAttach(sessionId: string, ip: string) {
-    if (!/^[A-Za-z0-9_-]{16,64}$/.test(sessionId)) throw new Error("invalid_session");
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(sessionId))
+      throw new Error("invalid_session");
     this.enforcePairingRate(`cli:ip:${ip || "unknown"}`, 10);
     this.enforcePairingRate("cli:global", 200);
-    const code = await randomCode(), cliSecret = await randomId(24);
-    const hash = await sha256(cliSecret), expiresAt = Date.now() + 300_000;
+    const code = await randomCode(),
+      cliSecret = await randomId(24);
+    const hash = await sha256(cliSecret),
+      expiresAt = Date.now() + 300_000;
     this.ctx.storage.transactionSync(() => {
-      this.ctx.storage.sql.exec('DELETE FROM cli_attach_attempts WHERE expires_at <= ?', Date.now());
+      this.ctx.storage.sql.exec(
+        "DELETE FROM cli_attach_attempts WHERE expires_at <= ?",
+        Date.now(),
+      );
       this.capacity("cli_attach_attempts", 512);
-      this.ctx.storage.sql.exec("INSERT INTO cli_attach_attempts(code,secret_hash,terminal_session_id,status,expires_at) VALUES(?,?,?,'pending',?)", code, hash, sessionId, expiresAt);
+      this.ctx.storage.sql.exec(
+        "INSERT INTO cli_attach_attempts(code,secret_hash,terminal_session_id,status,expires_at) VALUES(?,?,?,'pending',?)",
+        code,
+        hash,
+        sessionId,
+        expiresAt,
+      );
     });
     await this.ctx.storage.setAlarm(Date.now() + 60_000);
-    return {code, cliSecret, expiresAt};
+    return { code, cliSecret, expiresAt };
   }
   async previewCLIAttach(code: string) {
-    const row = [...this.ctx.storage.sql.exec("SELECT terminal_session_id,status,expires_at FROM cli_attach_attempts WHERE code = ?", code)][0];
-    if (!row || row.status !== 'pending' || Number(row.expires_at) <= Date.now()) throw new Error('pairing_expired');
-    return {sessionId: String(row.terminal_session_id)};
+    const row = [
+      ...this.ctx.storage.sql.exec(
+        "SELECT terminal_session_id,status,expires_at FROM cli_attach_attempts WHERE code = ?",
+        code,
+      ),
+    ][0];
+    if (
+      !row ||
+      row.status !== "pending" ||
+      Number(row.expires_at) <= Date.now()
+    )
+      throw new Error("pairing_expired");
+    return { sessionId: String(row.terminal_session_id) };
   }
   async approveCLIAttach(code: string, ownerId: string, browserId: string) {
     this.enforcePairingRate(`cli:approve:${ownerId}`, 30);
     this.ctx.storage.transactionSync(() => {
-      const row = [...this.ctx.storage.sql.exec("SELECT status,expires_at FROM cli_attach_attempts WHERE code = ?", code)][0];
-      if (!row || row.status !== 'pending' || Number(row.expires_at) <= Date.now()) throw new Error('pairing_expired');
-      this.ctx.storage.sql.exec("UPDATE cli_attach_attempts SET status='approved',owner_id=?,browser_session_id=? WHERE code=?",ownerId,browserId,code);
+      const row = [
+        ...this.ctx.storage.sql.exec(
+          "SELECT status,expires_at FROM cli_attach_attempts WHERE code = ?",
+          code,
+        ),
+      ][0];
+      if (
+        !row ||
+        row.status !== "pending" ||
+        Number(row.expires_at) <= Date.now()
+      )
+        throw new Error("pairing_expired");
+      this.ctx.storage.sql.exec(
+        "UPDATE cli_attach_attempts SET status='approved',owner_id=?,browser_session_id=? WHERE code=?",
+        ownerId,
+        browserId,
+        code,
+      );
     });
   }
-  async pollCLIAttach(code: string, secret: string): Promise<{status:'pending'|'expired'} | {status:'approved';ownerId:string;browserId:string;sessionId:string}> {
+  async pollCLIAttach(
+    code: string,
+    secret: string,
+  ): Promise<
+    | { status: "pending" | "expired" }
+    | {
+        status: "approved";
+        ownerId: string;
+        browserId: string;
+        sessionId: string;
+      }
+  > {
     const hash = await sha256(secret);
     return this.ctx.storage.transactionSync(() => {
-      const row = [...this.ctx.storage.sql.exec('SELECT * FROM cli_attach_attempts WHERE code = ?',code)][0];
-      if (!row || !timingSafeEqual(String(row.secret_hash), hash)) throw new Error('pairing_unauthorized');
-      if (Number(row.expires_at) <= Date.now() || row.status === 'consumed') return {status:'expired' as const};
-      if (row.status !== 'approved') return {status:'pending' as const};
-      this.ctx.storage.sql.exec("UPDATE cli_attach_attempts SET status='consumed',owner_id=NULL,browser_session_id=NULL WHERE code=?",code);
-      return {status:'approved' as const,ownerId:String(row.owner_id),browserId:String(row.browser_session_id),sessionId:String(row.terminal_session_id)};
+      const row = [
+        ...this.ctx.storage.sql.exec(
+          "SELECT * FROM cli_attach_attempts WHERE code = ?",
+          code,
+        ),
+      ][0];
+      if (!row || !timingSafeEqual(String(row.secret_hash), hash))
+        throw new Error("pairing_unauthorized");
+      if (Number(row.expires_at) <= Date.now() || row.status === "consumed")
+        return { status: "expired" as const };
+      if (row.status !== "approved") return { status: "pending" as const };
+      this.ctx.storage.sql.exec(
+        "UPDATE cli_attach_attempts SET status='consumed',owner_id=NULL,browser_session_id=NULL WHERE code=?",
+        code,
+      );
+      return {
+        status: "approved" as const,
+        ownerId: String(row.owner_id),
+        browserId: String(row.browser_session_id),
+        sessionId: String(row.terminal_session_id),
+      };
     });
   }
 
@@ -1456,7 +1519,10 @@ export class WebSSHState extends DurableObject<Env> {
       `DELETE FROM pairing_rate WHERE window_start < ?`,
       now - PAIRING_WINDOW_MS,
     );
-    this.ctx.storage.sql.exec("DELETE FROM cli_attach_attempts WHERE expires_at <= ?", now);
+    this.ctx.storage.sql.exec(
+      "DELETE FROM cli_attach_attempts WHERE expires_at <= ?",
+      now,
+    );
     const pending = this.ctx.storage.sql
       .exec(
         `SELECT (SELECT COUNT(*) FROM cli_attach_attempts)+(SELECT COUNT(*) FROM pairing_attempts)+(SELECT COUNT(*) FROM browser_sessions)+(SELECT COUNT(*) FROM terminal_sessions)+(SELECT COUNT(*) FROM grant_nonces) AS n`,
@@ -1495,9 +1561,16 @@ export class WebSSHState extends DurableObject<Env> {
     );
   }
   health() {
-    return {schema: Number([...this.ctx.storage.sql.exec('SELECT MAX(id) AS version FROM schema_migrations')][0]?.version ?? 0)};
+    return {
+      schema: Number(
+        [
+          ...this.ctx.storage.sql.exec(
+            "SELECT MAX(id) AS version FROM schema_migrations",
+          ),
+        ][0]?.version ?? 0,
+      ),
+    };
   }
-
 }
 
 export default {

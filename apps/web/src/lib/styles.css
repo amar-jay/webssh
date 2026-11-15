@@ -10,7 +10,9 @@
   --font-display: "Geist Variable", "Inter Variable", sans-serif;
   /* Symbols Nerd Font Mono supplies the private-use icons the terminal draws.
      Geist Mono does not include them, so it must stay ahead of the generic fallback. */
-  --font-mono: "Geist Mono Variable", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono:
+    "Geist Mono Variable", "Symbols Nerd Font Mono", ui-monospace,
+    SFMono-Regular, Menlo, Consolas, monospace;
   /* Tokyo Night Moon, shared with the terminal palette in theme.ts. */
   --color-canvas: #222436;
   --color-surface: #1e2030;

@@ -23,7 +23,13 @@
 
 <Tooltip.Provider>
   <Tooltip.Root>
-    <Tooltip.Trigger class={className} aria-label={ariaLabel ?? label} {type} {disabled} {onclick}>
+    <Tooltip.Trigger
+      class={className}
+      aria-label={ariaLabel ?? label}
+      {type}
+      {disabled}
+      {onclick}
+    >
       {@render children()}
     </Tooltip.Trigger>
     <Tooltip.Portal>

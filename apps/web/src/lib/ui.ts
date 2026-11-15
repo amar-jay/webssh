@@ -21,4 +21,5 @@ export const dialogOverlay = "fixed inset-0 z-50 bg-canvas/80 backdrop-blur-sm";
 export const dialogPanel =
   "fixed top-1/2 left-1/2 z-[51] -translate-1/2 rounded-2xl border border-line bg-surface shadow-2xl";
 
-export const iconAction = "inline-flex size-8 shrink-0 sm:size-9 items-center justify-center rounded-lg border-0 bg-transparent text-secondary transition-colors hover:bg-accent/10 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
+export const iconAction =
+  "inline-flex size-8 shrink-0 sm:size-9 items-center justify-center rounded-lg border-0 bg-transparent text-secondary transition-colors hover:bg-accent/10 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";

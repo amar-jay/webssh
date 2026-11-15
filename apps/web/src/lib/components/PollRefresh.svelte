@@ -5,8 +5,10 @@
   import Tip from "./Tip.svelte";
   import { iconAction } from "#lib/ui.js";
 
-  let { failed = $bindable(false), show = true }: { failed?: boolean; show?: boolean } =
-    $props();
+  let {
+    failed = $bindable(false),
+    show = true,
+  }: { failed?: boolean; show?: boolean } = $props();
   let refreshing = $state(false);
 
   async function refresh() {
@@ -31,7 +33,17 @@
 </script>
 
 {#if show}
-  <Tip label={refreshing ? "Refreshing…" : "Refresh"} class={iconAction} onclick={refresh} disabled={refreshing}>
-    <RefreshCw class="size-4 {refreshing ? 'animate-spin motion-reduce:animate-none' : ''}" aria-hidden="true" />
+  <Tip
+    label={refreshing ? "Refreshing…" : "Refresh"}
+    class={iconAction}
+    onclick={refresh}
+    disabled={refreshing}
+  >
+    <RefreshCw
+      class="size-4 {refreshing
+        ? 'animate-spin motion-reduce:animate-none'
+        : ''}"
+      aria-hidden="true"
+    />
   </Tip>
 {/if}

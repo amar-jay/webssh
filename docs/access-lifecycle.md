@@ -32,25 +32,25 @@ These are application ownership guarantees, not an OS sandbox. The agent runs as
 
 ## Resource limits
 
-| Resource | Bound |
-| --- | --- |
-| Native connections, including pending handshakes | Default 8, configurable up to 128 |
-| Pending handshake | Ten-second absolute read deadline; counts against connection limit |
-| Protocol frame / byte payload | 128 KiB / 64 KiB |
-| Native output buffer | One 16 KiB PTY chunk per connection, serialized writes |
-| Slow native writer / blocked PTY input | Ten-second network write / two-second PTY write deadline |
-| Controller silence | Twenty seconds, with five-second browser pings |
-| Browser input writer queue | 1 MiB; overflow fails closed, no replay |
-| Browser output consumption | One protocol reader waits for xterm's write callback |
-| Browser scrollback / images | 1,000 lines; 32 MiB image storage and 4,194,304 pixels per image |
-| xterm OSC/DCS parser payload | Upstream xterm 6 caps payload accumulation at 10,000,000 characters |
-| API JSON/native form bodies | 16 KiB actual bytes, 1,024 chunks, five seconds; Content-Length is not trusted |
-| Agent run/attach control operations | Bounded retries; three-second request/short tmux-operation budgets; cancellation joins pumps/monitor |
-| Local ledger | 128 entries, private regular file, maximum 64 KiB on read |
-| Owner agents / runs / terminal records | 128 / 32 / 4,096 (128 terminal records per run) |
-| Owner browser sessions | 64 live sessions; expired/revoked rows can be removed before admission |
-| Owner grant records | 1,024 total, 16 per terminal session; expired unused grants pruned, active lease nonces retained |
-| Shared pairing hub | 512 unexpired attempts and 4,096 rate buckets; expiry cleanup before admission |
+| Resource                                         | Bound                                                                                                |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Native connections, including pending handshakes | Default 8, configurable up to 128                                                                    |
+| Pending handshake                                | Ten-second absolute read deadline; counts against connection limit                                   |
+| Protocol frame / byte payload                    | 128 KiB / 64 KiB                                                                                     |
+| Native output buffer                             | One 16 KiB PTY chunk per connection, serialized writes                                               |
+| Slow native writer / blocked PTY input           | Ten-second network write / two-second PTY write deadline                                             |
+| Controller silence                               | Twenty seconds, with five-second browser pings                                                       |
+| Browser input writer queue                       | 1 MiB; overflow fails closed, no replay                                                              |
+| Browser output consumption                       | One protocol reader waits for xterm's write callback                                                 |
+| Browser scrollback / images                      | 1,000 lines; 32 MiB image storage and 4,194,304 pixels per image                                     |
+| xterm OSC/DCS parser payload                     | Upstream xterm 6 caps payload accumulation at 10,000,000 characters                                  |
+| API JSON/native form bodies                      | 16 KiB actual bytes, 1,024 chunks, five seconds; Content-Length is not trusted                       |
+| Agent run/attach control operations              | Bounded retries; three-second request/short tmux-operation budgets; cancellation joins pumps/monitor |
+| Local ledger                                     | 128 entries, private regular file, maximum 64 KiB on read                                            |
+| Owner agents / runs / terminal records           | 128 / 32 / 4,096 (128 terminal records per run)                                                      |
+| Owner browser sessions                           | 64 live sessions; expired/revoked rows can be removed before admission                               |
+| Owner grant records                              | 1,024 total, 16 per terminal session; expired unused grants pruned, active lease nonces retained     |
+| Shared pairing hub                               | 512 unexpired attempts and 4,096 rate buckets; expiry cleanup before admission                       |
 
 Cloud quotas are enforced at insertion, including concurrent/recovery paths. Agents/runs/session tombstones count toward quotas; access decisions are never silently evicted to admit more work. At capacity, use an existing unended session or an administratively reviewed new scope/account capacity policy. Persistent records are retained within these hard limits so prolonged offline termination decisions cannot be forgotten. This release does not silently recycle ownership tombstones or automatically kill processes to reclaim quota.
 

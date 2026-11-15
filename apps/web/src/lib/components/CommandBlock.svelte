@@ -23,7 +23,8 @@
     : 'my-3 rounded-lg border border-line bg-canvas px-3 py-2'}"
 >
   <span class="font-mono text-accent" aria-hidden="true">$</span><code
-    class="min-w-0 font-mono break-all text-ink whitespace-normal">{command}</code
+    class="min-w-0 font-mono break-all text-ink whitespace-normal"
+    >{command}</code
   >
   <Tip
     label="Copy command"
@@ -32,7 +33,9 @@
     onclick={copy}
     aria-label={copied ? "Copied" : `Copy ${command}`}
   >
-    {#if copied}<Check class="size-[1em]" />{:else}<Copy class="size-[1em]" />{/if}
+    {#if copied}<Check class="size-[1em]" />{:else}<Copy
+        class="size-[1em]"
+      />{/if}
   </Tip>
 </div>
 {#if failed}<p class="text-danger" role="alert">

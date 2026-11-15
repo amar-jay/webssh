@@ -1,7 +1,7 @@
 <script lang="ts">
   import AppShell from "#lib/components/AppShell.svelte";
   import CommandBlock from "#lib/components/CommandBlock.svelte";
-  import { buttonPrimary, buttonSubtle, eyebrow } from "#lib/ui.js";
+  import { buttonPrimary, eyebrow } from "#lib/ui.js";
   import { onMount } from "svelte";
   let mounted = $state(false);
   onMount(() => {
@@ -28,7 +28,6 @@
       )
         throw new Error();
       const id = putLocalSession({
-        mode: "remote",
         connection: {
           address: value.address,
           token: value.token,
@@ -42,23 +41,25 @@
       problem = "Paste a valid connection record from webssh serve --json.";
     }
   }
-  function mock() {
-    record = "";
-    void goto(`/s/${putLocalSession({ mode: "mock" })}`);
-  }
 </script>
 
 <svelte:head><title>Local connection · WebSSH</title></svelte:head>
 <AppShell
-  ><main class="mx-auto my-9 max-w-[660px] min-[721px]:mt-[60px] min-[721px]:mb-20">
+  ><main
+    class="mx-auto my-9 max-w-[660px] min-[721px]:mt-[60px] min-[721px]:mb-20"
+  >
     <p class={eyebrow}>WEBSSH / LOCAL DEVELOPMENT</p>
     <h1 class="text-4xl tracking-tight">Connect to your workspace.</h1>
     <p class="text-secondary">
       Start a local development agent and paste its connection record below.
     </p>
-    <CommandBlock command="webssh serve --backend ephemeral --dev-token --json ." />
+    <CommandBlock
+      command="webssh serve --backend ephemeral --dev-token --json ."
+    />
     <form onsubmit={connect}>
-      <label class="mt-6 mb-2.5 block text-sm" for="record">Connection record</label>
+      <label class="mt-6 mb-2.5 block text-sm" for="record"
+        >Connection record</label
+      >
       <textarea
         class="w-full resize-y rounded-lg border border-line bg-canvas p-4 font-mono text-sm tracking-normal text-ink normal-case"
         id="record"
@@ -73,14 +74,10 @@
         handoff.
       </p>
       {#if problem}<p class="text-danger" role="alert">{problem}</p>{/if}
-      <button class="{buttonPrimary} mt-3.5 mr-2.5" type="submit" disabled={!mounted}
-        >Connect</button
-      >
       <button
-        type="button"
-        disabled={!mounted}
-        class="{buttonSubtle} mt-3.5 mr-2.5"
-        onclick={mock}>Open mock terminal</button
+        class="{buttonPrimary} mt-3.5 mr-2.5"
+        type="submit"
+        disabled={!mounted}>Connect</button
       >
     </form>
   </main></AppShell

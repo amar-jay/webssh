@@ -10,15 +10,15 @@ Keep the session route entirely terminal-based, using the existing Tokyo Night M
 
 ## Current foundation
 
-| Component | Implemented | Essential gap |
-| --- | --- | --- |
-| Web terminal | xterm, addons, theme, terminal-only route, WASM loading, authenticated production session URLs | Live browser reload/sleep acceptance remains to be verified |
-| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership, fresh-grant reconnect and liveness deadlines | Deployed browser/relay outage acceptance remains a release gate |
-| Agent | Tailcat listener, HMAC grants, tmux persistence/recovery, active revocation, bounded resources, scoped cleanup and safe lifecycle events | Deployed signed-in browser and outage acceptance |
-| Protocol | Typed Protobuf v2, generated Go/TS codecs, shared fixtures, capabilities, pinned generators and generation-drift CI | Future protocol changes must preserve generation/fixture checks |
-| CLI | Configuration, pairing, opaque session URLs, persistent recovery, cleanup, published v0.1.0 archives, checksums and installer verified on all four native targets | Clean-machine signed-in install/pair/serve journey |
-| State service | Owner/pairing records, active lease checks, generation fences, durable termination, storage quotas and migration preservation tests | Deployed end-to-end release journey |
-| Deployment | Web/state deployed, versioned WASM/runtime assets, CSP, health, CI/release/deploy workflows and production smoke | Sustained relay capacity and signed-in deployed browser acceptance |
+| Component         | Implemented                                                                                                                                                       | Essential gap                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Web terminal      | xterm, addons, theme, terminal-only route, WASM loading, authenticated production session URLs                                                                    | Live browser reload/sleep acceptance remains to be verified        |
+| Browser transport | Owned Go/WASM bridge, typed client, cancellation, stream ownership, fresh-grant reconnect and liveness deadlines                                                  | Deployed browser/relay outage acceptance remains a release gate    |
+| Agent             | Tailcat listener, HMAC grants, tmux persistence/recovery, active revocation, bounded resources, scoped cleanup and safe lifecycle events                          | Deployed signed-in browser and outage acceptance                   |
+| Protocol          | Typed Protobuf v2, generated Go/TS codecs, shared fixtures, capabilities, pinned generators and generation-drift CI                                               | Future protocol changes must preserve generation/fixture checks    |
+| CLI               | Configuration, pairing, opaque session URLs, persistent recovery, cleanup, published v0.1.0 archives, checksums and installer verified on all four native targets | Clean-machine signed-in install/pair/serve journey                 |
+| State service     | Owner/pairing records, active lease checks, generation fences, durable termination, storage quotas and migration preservation tests                               | Deployed end-to-end release journey                                |
+| Deployment        | Web/state deployed, versioned WASM/runtime assets, CSP, health, CI/release/deploy workflows and production smoke                                                  | Sustained relay capacity and signed-in deployed browser acceptance |
 
 The original architecture notes contain future-tense statements that predate these implementations. Use the code and current protocol/transport documents for implementation status. READMEs remain user-owned.
 
@@ -33,7 +33,7 @@ The original architecture notes contain future-tense statements that predate the
 - Use one reader and a bounded writer queue. Wait for xterm consumption to apply output backpressure. Coalesce resize events.
 - Show connecting, failure, shell exit, and disconnect states inside the terminal. Distinguish a failed connection from a process exit.
 - Dispose terminal listeners and streams on navigation, including late dial completion. Do not silently replace a failed real session with a mock.
-- Keep mock attachment available through an explicit development mode.
+- Use real agents for development attachment; temporary simulated sessions have been removed.
 - Add a real headless-browser integration test using a local WebSocket-capable DERP and the native agent. The existing Node WASM smoke test is not a browser network test.
 
 **Acceptance:** from a browser, run commands in the served directory; verify Unicode, paste, Ctrl+C, an interactive full-screen program, resize, exit code, invalid credentials, and route disposal. No unexpected shell remains after disconnect under the current connection-scoped policy.
@@ -145,7 +145,7 @@ Before calling the essential release complete, perform this single end-to-end jo
 
 Proceed milestone by milestone with reviewable commits and update this plan as decisions settle. Keep READMEs protected. Run Go checks with `GOMAXPROCS=2` and `-p 1`; use race detection only with explicit limits and a reason. Use focused tests during implementation and reserve full builds/browser runs for integration changes and release gates.
 
-**Milestone 1 completed locally:** development-only credential handoff, real terminal route, explicit mocks and browser–DERP–agent acceptance test are implemented. See [browser session](browser-session.md).
+**Milestone 1 completed locally:** development-only credential handoff, real terminal route and browser–DERP–agent acceptance test are implemented. Temporary simulated sessions have since been removed. See [browser session](browser-session.md).
 
 **Milestone 2 implemented:** GitHub OAuth with HttpOnly cookies, Durable Object owner/pairing records, CLI `webssh pair`, HMAC-signed attach grants, and grant verification before PTY start. See [identity and pairing](identity-pairing.md). GitHub OAuth app credentials must be set on the Worker before public pairing works.
 

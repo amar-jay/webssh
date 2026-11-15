@@ -8,16 +8,14 @@
     "bindings": [
       {
         "name": "WEBSSH_STATE",
-        "class_name": "WebSSHState"
-      }
-    ]
+        "class_name": "WebSSHState",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": [
-        "WebSSHState"
-      ]
-    }
-  ]
+      "new_sqlite_classes": ["WebSSHState"],
+    },
+  ],
 }

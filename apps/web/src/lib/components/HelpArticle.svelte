@@ -11,15 +11,17 @@
   <Accordion.Root type="multiple" class="border-t border-line">
     <HelpQuestion value="pair" title="How do I pair a machine?">
       <p class="m-0">
-        On your machine, run <code class="text-accent">webssh pair</code>. Open the
-        approval link, sign in with GitHub, and confirm the machine name and code.
+        On your machine, run <code class="text-accent">webssh pair</code>. Open
+        the approval link, sign in with GitHub, and confirm the machine name and
+        code.
       </p>
     </HelpQuestion>
     <HelpQuestion value="next" title="What happens after pairing?">
       <p class="m-0">
         Pairing saves your machine’s credentials. Start the agent with
-        <code class="text-accent">webssh serve .</code>, open the printed URL, and
-        sign in with the same GitHub account. Choose a machine in Machines to start, reopen, or end its sessions.
+        <code class="text-accent">webssh serve .</code>, open the printed URL,
+        and sign in with the same GitHub account. Choose a machine in Machines
+        to start, reopen, or end its sessions.
       </p>
     </HelpQuestion>
     <HelpQuestion value="expired" title="My code has expired">

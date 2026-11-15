@@ -29,8 +29,13 @@ assert.equal(root.headers.get("referrer-policy"), "same-origin");
 // Exercise form-origin checks without an authenticated session or user cookies.
 for (const requestOrigin of [origin, "null", "https://untrusted.example"]) {
   const logout = await fetch(origin + "/logout", {
-    method: "POST", redirect: "manual", body: "",
-    headers: { origin: requestOrigin, "content-type": "application/x-www-form-urlencoded" },
+    method: "POST",
+    redirect: "manual",
+    body: "",
+    headers: {
+      origin: requestOrigin,
+      "content-type": "application/x-www-form-urlencoded",
+    },
     signal: AbortSignal.timeout(15000),
   });
   assert.equal(logout.status, requestOrigin === origin ? 303 : 403);
@@ -43,7 +48,8 @@ assert.equal(help.status, 200);
 assert.match(await help.text(), /How do I pair a machine/);
 for (const path of ["/machines", "/machines/release_smoke"]) {
   const response = await fetch(origin + path, {
-    redirect: "manual", headers: { cookie: "webssh_dev=1" },
+    redirect: "manual",
+    headers: { cookie: "webssh_dev=1" },
     signal: AbortSignal.timeout(15000),
   });
   assert.equal(response.status, 303);
@@ -57,7 +63,10 @@ for (const path of ["/dashboard", "/sessions"]) {
 const installer = await get("/install.sh");
 assert.equal(installer.status, 200);
 assert.match(installer.headers.get("cache-control"), /no-store/);
-assert.equal(await installer.text(), await readFile(new URL("./install.sh", import.meta.url), "utf8"));
+assert.equal(
+  await installer.text(),
+  await readFile(new URL("./install.sh", import.meta.url), "utf8"),
+);
 const dev = await get("/dev/connect");
 assert.equal(dev.status, 404);
 const m = await get("/tailcat/build.json");

@@ -3,25 +3,23 @@
   "name": "webssh-web",
   "main": ".svelte-kit/cloudflare/_worker.js",
   "compatibility_date": "2026-11-14",
-  "compatibility_flags": [
-    "nodejs_als"
-  ],
+  "compatibility_flags": ["nodejs_als"],
   "assets": {
     "binding": "ASSETS",
-    "directory": ".svelte-kit/cloudflare"
+    "directory": ".svelte-kit/cloudflare",
   },
-  "routes": [{"pattern":"ssh.amarjay.com","custom_domain":true}],
+  "routes": [{ "pattern": "ssh.amarjay.com", "custom_domain": true }],
   "workers_dev": false,
   "vars": {
-    "PUBLIC_ORIGIN": "https://ssh.amarjay.com"
+    "PUBLIC_ORIGIN": "https://ssh.amarjay.com",
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "WEBSSH_STATE",
         "class_name": "WebSSHState",
-        "script_name": "webssh-state"
-      }
-    ]
-  }
+        "script_name": "webssh-state",
+      },
+    ],
+  },
 }

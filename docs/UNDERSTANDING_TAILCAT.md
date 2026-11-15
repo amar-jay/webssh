@@ -22,14 +22,14 @@ Primary source links are pinned to the baseline where possible:
 
 Tailcat assembles Tailscale's data-plane components into an embeddable userspace transport. It supplies encrypted connectivity without a Tailscale account, a tailnet, the Tailscale control plane, root privileges, or changes to host routing and DNS.
 
-| Component | Responsibility |
-| --- | --- |
-| WireGuard | Authenticates node keys and encrypts peer traffic, optionally strengthened by a pre-shared key (PSK). |
-| DERP | Initial rendezvous and relay when a direct path is unavailable. |
-| magicsock | Endpoint discovery, NAT traversal, and selection of relay/direct paths. |
-| gVisor netstack | Userspace TCP/UDP sockets carried inside the tunnel. |
-| Tailcat wrapper | Addresses, peer introduction, configuration, listeners, and convenience services. |
-| WebSSH | User identity, pairing, authorization policy, terminal protocol, PTYs, tmux, persistence, and reconnect UX. |
+| Component       | Responsibility                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| WireGuard       | Authenticates node keys and encrypts peer traffic, optionally strengthened by a pre-shared key (PSK).       |
+| DERP            | Initial rendezvous and relay when a direct path is unavailable.                                             |
+| magicsock       | Endpoint discovery, NAT traversal, and selection of relay/direct paths.                                     |
+| gVisor netstack | Userspace TCP/UDP sockets carried inside the tunnel.                                                        |
+| Tailcat wrapper | Addresses, peer introduction, configuration, listeners, and convenience services.                           |
+| WebSSH          | User identity, pairing, authorization policy, terminal protocol, PTYs, tmux, persistence, and reconnect UX. |
 
 A Tailcat TCP connection is an ordinary byte stream to the application. It is not a WebSocket, SSH session, PTY, or terminal protocol. Tailcat separately offers optional SSH and file services built on that transport.
 
@@ -93,21 +93,21 @@ Configure fields before `Start` or the first `Listen`. Avoid mutating configurat
 
 ### Server
 
-| API/configuration | Behavior |
-| --- | --- |
-| `Server{}` | Usable defaults: ephemeral identity/PSK, relay selection, default logging. |
-| `Start() error` | Explicit startup; starting twice returns an error. No context argument at this version. |
-| `Listen(ctx, "tcp", ":PORT")` | Starts if needed; returns a `net.Listener` on a virtual tunnel port. |
-| `TailcatAddr()` | Connection credential; only call after successful startup. |
-| `Addr()` | Virtual IP, distinct from the shareable `tc...` address. |
-| `OnTCP` / `OnUDP` | Per-port handler factories, set before startup. Nil handlers reject/drop traffic. |
-| `OnTCPForward` / `OnUDPForward` | Traffic addressed through the server to other destinations; relevant to exit-node behavior. |
-| `AllowedClients` | Initial allowed node keys. Empty means **allow everyone**. |
-| `AddAllowedClient(k)` | Adds an allowed key; does not implement revocation. |
-| `ServedTCPPorts` / `ServedUDPPorts` | Additional packet-filter restrictions for callback-served ports. |
-| `Status()` | Includes peers and path details such as `CurAddr` and `Relay`. |
-| `Close()` | Closes listeners, active connections, and backend resources. |
-| `DrainTCP(ctx)` | Specialized bounded teardown support before process exit; see cautions below. |
+| API/configuration                   | Behavior                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| `Server{}`                          | Usable defaults: ephemeral identity/PSK, relay selection, default logging.                  |
+| `Start() error`                     | Explicit startup; starting twice returns an error. No context argument at this version.     |
+| `Listen(ctx, "tcp", ":PORT")`       | Starts if needed; returns a `net.Listener` on a virtual tunnel port.                        |
+| `TailcatAddr()`                     | Connection credential; only call after successful startup.                                  |
+| `Addr()`                            | Virtual IP, distinct from the shareable `tc...` address.                                    |
+| `OnTCP` / `OnUDP`                   | Per-port handler factories, set before startup. Nil handlers reject/drop traffic.           |
+| `OnTCPForward` / `OnUDPForward`     | Traffic addressed through the server to other destinations; relevant to exit-node behavior. |
+| `AllowedClients`                    | Initial allowed node keys. Empty means **allow everyone**.                                  |
+| `AddAllowedClient(k)`               | Adds an allowed key; does not implement revocation.                                         |
+| `ServedTCPPorts` / `ServedUDPPorts` | Additional packet-filter restrictions for callback-served ports.                            |
+| `Status()`                          | Includes peers and path details such as `CurAddr` and `Relay`.                              |
+| `Close()`                           | Closes listeners, active connections, and backend resources.                                |
+| `DrainTCP(ctx)`                     | Specialized bounded teardown support before process exit; see cautions below.               |
 
 Prefer a listener for a single WebSSH application port. It accepts standard Go handlers without opening an operating-system TCP listener. An active listener takes precedence over `OnTCP`/`OnUDP` for that port.
 
@@ -191,12 +191,14 @@ interface TailcatDialOptions {
   addr: string;
   derpMapURL?: string;
   privateKey?: string; // JSON encoding of tailcat.PrivateKey
-  port?: number;      // Defaults to 1; WebSSH must pass its agreed port.
+  port?: number; // Defaults to 1; WebSSH must pass its agreed port.
   verbose?: boolean;
 }
 
 // Conceptual declarations; these types are not installed in our app yet.
-declare function tailcatDial(options: TailcatDialOptions): Promise<TailcatConnection>;
+declare function tailcatDial(
+  options: TailcatDialOptions,
+): Promise<TailcatConnection>;
 declare function tailcatListen(options: {
   derpMapURL: string;
   privateKey?: string;
@@ -275,12 +277,12 @@ The existing bridge's raw stream is enough to carry our own protocol. **Passing 
 
 Proposed division of work:
 
-| Layer | WebSSH responsibility |
-| --- | --- |
-| `apps/web` | Load WASM, obtain authorized connection information, adapt streams, feed xterm, forward input/resize, dispose cleanly. |
-| `apps/cli/internal/agent` | Own transport lifecycle, authenticate requests, create/attach PTYs or tmux sessions, enforce session policy. |
-| `apps/state` and web server | Application identity, ownership, pairing records, session metadata, authorized connection-info delivery. |
-| `packages/protocol` | Versioned frame contract and cross-language fixtures. |
+| Layer                       | WebSSH responsibility                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`                  | Load WASM, obtain authorized connection information, adapt streams, feed xterm, forward input/resize, dispose cleanly. |
+| `apps/cli/internal/agent`   | Own transport lifecycle, authenticate requests, create/attach PTYs or tmux sessions, enforce session policy.           |
+| `apps/state` and web server | Application identity, ownership, pairing records, session metadata, authorized connection-info delivery.               |
+| `packages/protocol`         | Versioned frame contract and cross-language fixtures.                                                                  |
 
 A candidate single-stream contract needs a versioned handshake, authenticated attach request, terminal type/dimensions, input/output bytes, resize messages, exit/error messages, and explicit detach behavior. This is a proposal, not an existing Tailcat protocol. Define maximum frame sizes, encoding, and valid state transitions before implementing it.
 
@@ -288,7 +290,7 @@ TCP reads do not preserve message boundaries: a header can span reads, or severa
 
 Use one reader loop and one ordered, bounded writer queue. Upstream's pull-based reading gives transport backpressure only if we stop requesting data when the terminal consumer is busy; connect that loop to xterm's write-completion mechanism. Bound pasted-input queues and coalesce rapid resize updates. Do not let slow rendering accumulate unbounded output arrays.
 
-The xterm Attach addon expects a WebSocket and cannot attach directly to this connection object. Our adapter belongs at the existing terminal controller's input/output boundary; it will replace mock-session attachment when ready.
+The xterm Attach addon expects a WebSocket and cannot attach directly to this connection object. Our `remote-session.ts` adapter connects Tailcat streams at the terminal controller's input/output boundary. The temporary simulated session adapter has been removed.
 
 ## PTYs, SSH, tmux, and reconnects
 
@@ -325,15 +327,15 @@ Preserve PSKs, protect private keys, and avoid publishing shell credentials in D
 
 At reviewed `main`, the important differences are:
 
-| New API/change | Implication |
-| --- | --- |
-| `Server.AllowClient func(key.NodePublic) bool` | Replaces `AllowedClients` and `AddAllowedClient`; nil still permits all. Configure before startup. |
-| `KeySet` | Thread-safe allowed-key collection; `Contains` can be the admission callback. |
-| `Server.DisconnectClient(k)` | Removes peer routing; existing connections stall rather than receiving resets. Reject the key in admission first to prevent reconnection. |
-| `Server.PeerKey(remote)` | Identifies accepted connections/flows by their authenticated node key. |
-| `Server.StartContext(ctx)` | Bounds explicit startup; cancellation after startup does not stop the server. |
-| `Client.DERPRegion()` | Exposes the selected relay after startup. |
-| Native shared-library API | Adds a C-compatible embedding route; unrelated to the existing JS bridge. |
+| New API/change                                 | Implication                                                                                                                               |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `Server.AllowClient func(key.NodePublic) bool` | Replaces `AllowedClients` and `AddAllowedClient`; nil still permits all. Configure before startup.                                        |
+| `KeySet`                                       | Thread-safe allowed-key collection; `Contains` can be the admission callback.                                                             |
+| `Server.DisconnectClient(k)`                   | Removes peer routing; existing connections stall rather than receiving resets. Reject the key in admission first to prevent reconnection. |
+| `Server.PeerKey(remote)`                       | Identifies accepted connections/flows by their authenticated node key.                                                                    |
+| `Server.StartContext(ctx)`                     | Bounds explicit startup; cancellation after startup does not stop the server.                                                             |
+| `Client.DERPRegion()`                          | Exposes the selected relay after startup.                                                                                                 |
+| Native shared-library API                      | Adds a C-compatible embedding route; unrelated to the existing JS bridge.                                                                 |
 
 The new admission hook is consulted for clients not already connected, runs without the server lock held, and may block. Rejected clients retry, so expensive lookups should cache negative decisions. It is not a per-request authorization callback. Removing a key from a `KeySet` alone does not revoke an already connected peer.
 
@@ -345,16 +347,16 @@ Because TCP runs inside the process, exiting immediately can lose final queued d
 
 Close application streams, stop listeners, and release the server/client backend in a deliberate shutdown sequence. Listener closure and accepted-stream closure are separate operations. A browser read returning EOF still needs connection cleanup; it is not a process-exit message.
 
-| Symptom | First checks |
-| --- | --- |
-| Browser never becomes ready | Asset HTTP status/MIME, matching runtime, WASM policy, loader error handling, readiness callback timing. |
-| Dial times out | Correct credential and port, agent alive, same relay, PSK/key persistence, admission policy, HTTPS/WebSocket/CSP restrictions. |
-| Native works, browser fails | Relay WebSocket support and browser network policy; do not depend on native direct UDP. |
-| Connection works, screen stays blank | Application framing/handshake, reader ownership, PTY creation, initial size, output pump. |
-| Corrupted output | Incremental frame decoding, byte handling, concurrent reads/writes, split UTF-8. |
-| Extra latency or low throughput | Relay region/capacity/rate limiting, terminal render backpressure, browser throttling. |
-| Reconnect starts a new shell | Agent/session persistence and attach behavior; Tailcat does not restore a shell. |
-| Previously shared address stops working after restart | Restored node key, PSK, relay information, or intentionally rotated identity. |
+| Symptom                                               | First checks                                                                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Browser never becomes ready                           | Asset HTTP status/MIME, matching runtime, WASM policy, loader error handling, readiness callback timing.                       |
+| Dial times out                                        | Correct credential and port, agent alive, same relay, PSK/key persistence, admission policy, HTTPS/WebSocket/CSP restrictions. |
+| Native works, browser fails                           | Relay WebSocket support and browser network policy; do not depend on native direct UDP.                                        |
+| Connection works, screen stays blank                  | Application framing/handshake, reader ownership, PTY creation, initial size, output pump.                                      |
+| Corrupted output                                      | Incremental frame decoding, byte handling, concurrent reads/writes, split UTF-8.                                               |
+| Extra latency or low throughput                       | Relay region/capacity/rate limiting, terminal render backpressure, browser throttling.                                         |
+| Reconnect starts a new shell                          | Agent/session persistence and attach behavior; Tailcat does not restore a shell.                                               |
+| Previously shared address stops working after restart | Restored node key, PSK, relay information, or intentionally rotated identity.                                                  |
 
 Avoid logging addresses/key JSON while diagnosing. Native `Status()` and `DiscoPing` can distinguish relay/direct paths; the existing JS bridge does not expose these diagnostics.
 
@@ -375,17 +377,17 @@ For WebSSH's first real transport milestone, verify:
 
 For deeper source work:
 
-| Files | Read for |
-| --- | --- |
-| `tailcat.go` | Server/client startup, DERP maps/cache, peer admission, netstack, status, dialing, teardown. |
-| `listen.go`, `listen_test.go` | Standard listener API, port ownership, UDP flows, closure. |
-| `disco.go`, `wire.go`, associated tests | Peer introduction and address representation/validation. |
-| `web/main_js.go`, `web/app.js` | Actual JS bridge, loader, demo protocol and persistence choices. |
-| `web/wasm_test.go` | Browser/native interoperability with a local WebSocket DERP. |
-| `tailcat_ssh*.go`, `tailcat_exec.go` | Optional SSH/PTY/process behavior and peer environment. |
-| `tailcat_files.go`, `tailcat_sftp.go` | File-service modes, SFTP access, rooted paths. |
-| `internal/wasmbuild`, `internal/buildtags`, `webdemo` | Asset generation, feature omission, compression/serving. |
-| `cmd/tailcat` | CLI policy and convenience features; do not assume these are automatic library behavior. |
-| `SECURITY.md`, `CHANGELOG.md`, `go.mod` | Threat model, API evolution, tightly coupled dependencies. |
+| Files                                                 | Read for                                                                                     |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `tailcat.go`                                          | Server/client startup, DERP maps/cache, peer admission, netstack, status, dialing, teardown. |
+| `listen.go`, `listen_test.go`                         | Standard listener API, port ownership, UDP flows, closure.                                   |
+| `disco.go`, `wire.go`, associated tests               | Peer introduction and address representation/validation.                                     |
+| `web/main_js.go`, `web/app.js`                        | Actual JS bridge, loader, demo protocol and persistence choices.                             |
+| `web/wasm_test.go`                                    | Browser/native interoperability with a local WebSocket DERP.                                 |
+| `tailcat_ssh*.go`, `tailcat_exec.go`                  | Optional SSH/PTY/process behavior and peer environment.                                      |
+| `tailcat_files.go`, `tailcat_sftp.go`                 | File-service modes, SFTP access, rooted paths.                                               |
+| `internal/wasmbuild`, `internal/buildtags`, `webdemo` | Asset generation, feature omission, compression/serving.                                     |
+| `cmd/tailcat`                                         | CLI policy and convenience features; do not assume these are automatic library behavior.     |
+| `SECURITY.md`, `CHANGELOG.md`, `go.mod`               | Threat model, API evolution, tightly coupled dependencies.                                   |
 
 The source is BSD-3-Clause licensed; preserve required notices when redistributing upstream code/assets. Before implementation, the remaining product decisions are pairing and credential delivery, key persistence/rotation, relay operation, session authorization, terminal framing, and reconnect semantics. Tailcat supplies the encrypted stream underneath those choices.

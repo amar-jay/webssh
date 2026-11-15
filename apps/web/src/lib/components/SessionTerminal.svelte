@@ -1,11 +1,20 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { createTerminal, type SessionTerminal, type TerminalOptions } from '#lib/terminal/create-terminal.js';
-  import '@xterm/xterm/css/xterm.css';
-  import '#lib/terminal/fonts.css';
-  import { tokyoNightMoon } from '#lib/terminal/theme.js';
+  import { onMount } from "svelte";
+  import {
+    createTerminal,
+    type SessionTerminal,
+    type TerminalOptions,
+  } from "#lib/terminal/create-terminal.js";
+  import "@xterm/xterm/css/xterm.css";
+  import "#lib/terminal/fonts.css";
+  import { tokyoNightMoon } from "#lib/terminal/theme.js";
 
-  let { sessionId, options = {}, onReady, onError }: {
+  let {
+    sessionId,
+    options = {},
+    onReady,
+    onError,
+  }: {
     sessionId: string;
     options?: TerminalOptions;
     onError?: () => void;
@@ -43,8 +52,9 @@
     void initialize().catch((error: unknown) => {
       if (disposed) return;
       onError?.();
-      container.textContent = 'Could not initialize the terminal. Reload the page to try again.';
-      console.error('Failed to initialize terminal');
+      container.textContent =
+        "Could not initialize the terminal. Reload the page to try again.";
+      console.error("Failed to initialize terminal");
     });
 
     return () => {

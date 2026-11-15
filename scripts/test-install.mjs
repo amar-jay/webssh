@@ -38,7 +38,10 @@ try {
     RELEASE_FIXTURE: scratch,
     RELEASE_ARCHIVE: archive,
   };
-  await writeFile(join(scratch, "metadata.json"), JSON.stringify([{ tag_name: `v${version}`, prerelease: true }]));
+  await writeFile(
+    join(scratch, "metadata.json"),
+    JSON.stringify([{ tag_name: `v${version}`, prerelease: true }]),
+  );
   const install = (selected = version) =>
     execFileSync(
       "sh",

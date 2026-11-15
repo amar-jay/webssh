@@ -3,11 +3,7 @@
     "name": "attach",
     "message": {
       "sessionId": "fixture-session",
-      "capabilities": [
-        "persistence",
-        "reconnect",
-        "terminate"
-      ],
+      "capabilities": ["persistence", "reconnect", "terminate"],
       "type": "create",
       "version": 2,
       "token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -21,11 +17,7 @@
     "name": "ready",
     "message": {
       "sessionId": "fixture-session",
-      "capabilities": [
-        "persistence",
-        "reconnect",
-        "terminate"
-      ],
+      "capabilities": ["persistence", "reconnect", "terminate"],
       "backend": "tmux",
       "type": "ready",
       "version": 2

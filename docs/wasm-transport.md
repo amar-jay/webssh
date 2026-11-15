@@ -2,7 +2,7 @@
 
 `packages/transport` owns our Go/WASM entrypoint and TypeScript API. It imports Tailcat `v0.7.0`; it does not compile or expose the upstream demo bridge. Native code can reuse the Go client lifecycle package without importing CLI code.
 
-The `/s/<session_id>` route uses authenticated session resolution, short-lived grants and the persistent tmux agent. `/dev/connect` and mock handoffs are available only in loopback development. See [durable sessions](durable-sessions.md) and [deployment and distribution](deployment.md).
+The `/s/<session_id>` route uses authenticated session resolution, short-lived grants and the persistent tmux agent. `/dev/connect` provides real-agent handoffs only in loopback development. Simulated sessions have been removed. See [durable sessions](durable-sessions.md) and [deployment and distribution](deployment.md).
 
 ## Build and use
 
@@ -18,7 +18,7 @@ The build writes a versioned gzip asset, matching Go runtime and hash/size manif
 Call only in browser code, such as a Svelte `onMount` callback:
 
 ```ts
-import { loadTransport } from '@webssh/transport';
+import { loadTransport } from "@webssh/transport";
 
 const transport = await loadTransport();
 const identity = await transport.generateIdentity();
@@ -26,7 +26,7 @@ const identity = await transport.generateIdentity();
 // Keep identity.nodePrivateKey secret; persistence is the caller's policy.
 const client = await transport.createClient({
   address: authorizedTailcatAddress,
-  nodePrivateKey: identity.nodePrivateKey
+  nodePrivateKey: identity.nodePrivateKey,
 });
 try {
   const conn = await client.dial(applicationPort, { signal });

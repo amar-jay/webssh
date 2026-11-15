@@ -10,14 +10,14 @@ export async function randomId(bytes = 16): Promise<string> {
 
 export async function randomCode(): Promise<string> {
   // 8 chars from Crockford-ish alphabet without ambiguous glyphs.
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const buf = new Uint8Array(8);
   crypto.getRandomValues(buf);
-  return Array.from(buf, (b) => alphabet[b % alphabet.length]).join('');
+  return Array.from(buf, (b) => alphabet[b % alphabet.length]).join("");
 }
 
 export async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', text(value));
+  const digest = await crypto.subtle.digest("SHA-256", text(value));
   return base64Url(new Uint8Array(digest));
 }
 
@@ -26,22 +26,25 @@ export async function encodeGrant(
   grantKey: string,
   terminalSessionId: string,
   nonce: string,
-  expUnix: number
+  expUnix: number,
 ): Promise<string> {
   const message = `v1\n${agentId}\n${terminalSessionId}\n${expUnix}\n${nonce}`;
   const mac = await hmacSign(grantKey, message);
   return `v1.${terminalSessionId}.${expUnix}.${nonce}.${mac}`;
 }
 
-export async function hmacSign(keyMaterial: string, message: string): Promise<string> {
+export async function hmacSign(
+  keyMaterial: string,
+  message: string,
+): Promise<string> {
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     text(keyMaterial),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign']
+    ["sign"],
   );
-  const mac = await crypto.subtle.sign('HMAC', key, text(message));
+  const mac = await crypto.subtle.sign("HMAC", key, text(message));
   return base64Url(new Uint8Array(mac));
 }
 
@@ -53,7 +56,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 function base64Url(bytes: Uint8Array): string {
-  let s = '';
+  let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

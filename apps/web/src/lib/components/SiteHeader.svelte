@@ -31,14 +31,18 @@
     aria-label="Main navigation"
   >
     {#if landing || !signedIn}
-      <a class="hover:text-ink" href={signedIn ? "/machines" : "/login"}>Serve</a>
+      <a class="hover:text-ink" href={signedIn ? "/machines" : "/login"}
+        >Serve</a
+      >
     {:else}
       {#each appLinks as link (link.href)}
         <a
           class="hover:text-ink aria-[current=page]:text-ink"
           href={link.href}
-          aria-current={(page.url.pathname === link.href || page.url.pathname.startsWith(link.href + "/")) ? "page" : undefined}
-          >{link.label}</a
+          aria-current={page.url.pathname === link.href ||
+          page.url.pathname.startsWith(link.href + "/")
+            ? "page"
+            : undefined}>{link.label}</a
         >
       {/each}
     {/if}

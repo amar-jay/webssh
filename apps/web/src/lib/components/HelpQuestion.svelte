@@ -3,8 +3,11 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import type { Snippet } from "svelte";
 
-  let { value, title, children }: { value: string; title: string; children: Snippet } =
-    $props();
+  let {
+    value,
+    title,
+    children,
+  }: { value: string; title: string; children: Snippet } = $props();
 </script>
 
 <Accordion.Item {value} class="border-b border-line">
@@ -13,7 +16,9 @@
       class="flex w-full items-center justify-between gap-4 border-0 bg-transparent py-4 text-left text-base text-ink [&[data-state=open]>svg]:rotate-180"
     >
       {title}
-      <ChevronDown class="size-4 shrink-0 text-secondary transition-transform" />
+      <ChevronDown
+        class="size-4 shrink-0 text-secondary transition-transform"
+      />
     </Accordion.Trigger>
   </Accordion.Header>
   <Accordion.Content>

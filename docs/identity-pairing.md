@@ -52,10 +52,10 @@ webssh serve .
 
 Class: `WebSSHState` (SQLite).
 
-| Object id | Purpose |
-| --- | --- |
+| Object id                | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
 | `owner:<github_user_id>` | Owner profile, sessions, agents, terminal sessions, grant metadata |
-| `pairing` | Short-lived pairing attempts and rate limits |
+| `pairing`                | Short-lived pairing attempts and rate limits                       |
 
 Authorization never treats a client-supplied Durable Object id, agent id, or session id as proof of access. The web Worker derives the owner object from the authenticated session, then checks that the requested agent/session belongs to that owner.
 
@@ -63,14 +63,14 @@ Authorization never treats a client-supplied Durable Object id, agent id, or ses
 
 Stable ids are public handles. Secrets are stored hashed (or only as HMAC keys with restrictive file modes on the agent). Credentials are never placed in URLs, logs, or ordinary `config.toml`.
 
-| Record | Stable id | Secret / credential |
-| --- | --- | --- |
-| Owner | `owner_id` (= GitHub user id) | none (OAuth subject) |
-| Browser session | `session_id` | cookie authenticity via `SESSION_SECRET` |
-| Pairing attempt | `attempt_id` + user-facing `code` | `cli_secret` (one-time poll authenticator) |
-| Agent | `agent_id` | `agent_token` (hashed at rest); `grant_key` (HMAC key, stored for minting) |
-| Terminal session | `terminal_session_id` | none |
-| Connection grant | `grant_id` / nonce | compact signed grant string |
+| Record           | Stable id                         | Secret / credential                                                        |
+| ---------------- | --------------------------------- | -------------------------------------------------------------------------- |
+| Owner            | `owner_id` (= GitHub user id)     | none (OAuth subject)                                                       |
+| Browser session  | `session_id`                      | cookie authenticity via `SESSION_SECRET`                                   |
+| Pairing attempt  | `attempt_id` + user-facing `code` | `cli_secret` (one-time poll authenticator)                                 |
+| Agent            | `agent_id`                        | `agent_token` (hashed at rest); `grant_key` (HMAC key, stored for minting) |
+| Terminal session | `terminal_session_id`             | none                                                                       |
+| Connection grant | `grant_id` / nonce                | compact signed grant string                                                |
 
 ## Pairing flow
 
@@ -129,13 +129,13 @@ The legacy per-run `--json` token remains **development-only** for `/dev/connect
 
 ## Acceptance mapping
 
-| Requirement | Mechanism |
-| --- | --- |
-| Second account cannot access another owner | Owner DO isolation + session-derived routing |
-| Expired/replayed pairing codes fail | Expiry, claimed flag, cli_secret check |
-| Revoked agent credentials fail | Server refuse mint; agent without matching grant_key rejects |
-| Invalid grants never start a PTY | Constant-time MAC verify before `startProcess` |
-| Logout/expiry blocks new access | Session row + cookie cleared; grant mint requires session |
+| Requirement                                | Mechanism                                                    |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| Second account cannot access another owner | Owner DO isolation + session-derived routing                 |
+| Expired/replayed pairing codes fail        | Expiry, claimed flag, cli_secret check                       |
+| Revoked agent credentials fail             | Server refuse mint; agent without matching grant_key rejects |
+| Invalid grants never start a PTY           | Constant-time MAC verify before `startProcess`               |
+| Logout/expiry blocks new access            | Session row + cookie cleared; grant mint requires session    |
 
 ## Corrected enforcement and operational limits
 

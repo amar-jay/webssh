@@ -12,9 +12,7 @@ export async function loadWorkspace(platform: Platform, ownerId: string) {
     unavailable: true,
   };
   const env = await runtimeEnv(platform?.env as AuthEnv | undefined);
-  // Local dev has no Durable Object. Show an empty workspace instead of a failure.
-  if (!env?.WEBSSH_STATE)
-    return import.meta.env.DEV ? { ...empty, unavailable: false } : empty;
+  if (!env?.WEBSSH_STATE) return empty;
   try {
     const state = ownerStub(env.WEBSSH_STATE as never, ownerId);
     const [agents, runs, sessions] = await Promise.all([

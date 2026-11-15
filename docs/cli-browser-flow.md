@@ -29,13 +29,13 @@ The `/s/<id>` page redirects unauthenticated production visitors through GitHub 
 
 Serve sends an authenticated heartbeat every 10 seconds. Each control operation has at most three attempts with a three-second request budget and 0.5/1-second retry delays. Permanent authorization/state failures stop immediately. Exhausting heartbeat retries cancels the listener and cleans up local shells.
 
-| Session state | Meaning |
-| --- | --- |
-| connecting | Announced agent is reachable and no live attach lease has been confirmed; dashboard labels this Ready to open. |
-| active | Agent confirmed a single-use grant and has a current controller lease. |
-| offline | Descriptor is unavailable or no heartbeat was received for 35 seconds. Shell state is unknown. |
-| ended | An explicit end action, agent-confirmed attachment cleanup, or completed serve shutdown ended this session. |
-| expired | No run heartbeat for 24 hours. Shell state is unknown; no exit timestamp is fabricated. |
+| Session state | Meaning                                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| connecting    | Announced agent is reachable and no live attach lease has been confirmed; dashboard labels this Ready to open. |
+| active        | Agent confirmed a single-use grant and has a current controller lease.                                         |
+| offline       | Descriptor is unavailable or no heartbeat was received for 35 seconds. Shell state is unknown.                 |
+| ended         | An explicit end action, agent-confirmed attachment cleanup, or completed serve shutdown ended this session.    |
+| expired       | No run heartbeat for 24 hours. Shell state is unknown; no exit timestamp is fabricated.                        |
 
 Active authorization is rechecked every two seconds with a three-second request budget and a ten-second lease. Missing heartbeats or leases alone never produce an ended record or an exit code. Only an actual protocol exit frame is reported as shell exit in the terminal. A lost connection reports unknown shell state.
 

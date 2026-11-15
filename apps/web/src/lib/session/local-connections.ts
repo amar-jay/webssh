@@ -1,5 +1,5 @@
-import type { Connection } from '../terminal/remote-session.js';
-export type LocalSession = { mode: 'remote'; connection: Connection } | { mode: 'mock' };
+import type { Connection } from "../terminal/remote-session.js";
+export type LocalSession = { connection: Connection };
 // Single-use browser memory only. Never serialize credentials into route data.
 const pending = new Map<string, LocalSession>();
 export function putLocalSession(session: LocalSession): string {

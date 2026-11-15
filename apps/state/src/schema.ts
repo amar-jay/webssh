@@ -77,18 +77,26 @@ export const migrations: { id: number; sql: string }[] = [
         count INTEGER NOT NULL,
         window_start INTEGER NOT NULL
       );
-    `
-  }
-, { id: 2, sql: `ALTER TABLE grant_nonces ADD COLUMN browser_session_id TEXT;
+    `,
+  },
+  {
+    id: 2,
+    sql: `ALTER TABLE grant_nonces ADD COLUMN browser_session_id TEXT;
 ALTER TABLE grant_nonces ADD COLUMN consumed_at INTEGER;
 ALTER TABLE terminal_sessions ADD COLUMN browser_session_id TEXT;
-ALTER TABLE agents ADD COLUMN token_expires_at INTEGER;` }
-, { id: 3, sql: `ALTER TABLE terminal_sessions ADD COLUMN active_nonce TEXT;
+ALTER TABLE agents ADD COLUMN token_expires_at INTEGER;`,
+  },
+  {
+    id: 3,
+    sql: `ALTER TABLE terminal_sessions ADD COLUMN active_nonce TEXT;
 ALTER TABLE terminal_sessions ADD COLUMN lease_expires_at INTEGER;
 ALTER TABLE terminal_sessions ADD COLUMN last_seen_at INTEGER;
 ALTER TABLE agents ADD COLUMN rotation_id TEXT;
-ALTER TABLE agents ADD COLUMN previous_token_hash TEXT;` }
-, { id: 4, sql: `CREATE TABLE agent_runs (
+ALTER TABLE agents ADD COLUMN previous_token_hash TEXT;`,
+  },
+  {
+    id: 4,
+    sql: `CREATE TABLE agent_runs (
  run_id TEXT PRIMARY KEY NOT NULL,
  owner_id TEXT NOT NULL,
  agent_id TEXT NOT NULL,
@@ -104,21 +112,28 @@ ALTER TABLE agents ADD COLUMN previous_token_hash TEXT;` }
 );
 CREATE INDEX agent_runs_owner ON agent_runs(owner_id);
 ALTER TABLE terminal_sessions ADD COLUMN run_id TEXT;
-CREATE INDEX terminal_sessions_run ON terminal_sessions(run_id);` }
-, { id: 5, sql: `ALTER TABLE agent_runs ADD COLUMN backend TEXT NOT NULL DEFAULT 'ephemeral';
+CREATE INDEX terminal_sessions_run ON terminal_sessions(run_id);`,
+  },
+  {
+    id: 5,
+    sql: `ALTER TABLE agent_runs ADD COLUMN backend TEXT NOT NULL DEFAULT 'ephemeral';
 ALTER TABLE agent_runs ADD COLUMN generation TEXT;
 ALTER TABLE grant_nonces ADD COLUMN run_generation TEXT;
-ALTER TABLE terminal_sessions ADD COLUMN termination_requested INTEGER NOT NULL DEFAULT 0;` }
-, { id: 6, sql: `CREATE TABLE cli_attach_attempts (
+ALTER TABLE terminal_sessions ADD COLUMN termination_requested INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    id: 6,
+    sql: `CREATE TABLE cli_attach_attempts (
  code TEXT PRIMARY KEY NOT NULL, secret_hash TEXT NOT NULL,
  terminal_session_id TEXT NOT NULL, status TEXT NOT NULL,
  owner_id TEXT, browser_session_id TEXT, expires_at INTEGER NOT NULL
-);` }
+);`,
+  },
 ];
 
 export function applyMigrations(
   sql: SqlStorage,
-  transactionSync: (closure: () => void) => void
+  transactionSync: (closure: () => void) => void,
 ): void {
   sql.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -127,16 +142,18 @@ export function applyMigrations(
     );
   `);
   const applied = new Set(
-    [...sql.exec('SELECT id FROM schema_migrations')].map((row) => Number(row.id))
+    [...sql.exec("SELECT id FROM schema_migrations")].map((row) =>
+      Number(row.id),
+    ),
   );
   for (const migration of migrations) {
     if (applied.has(migration.id)) continue;
     transactionSync(() => {
       sql.exec(migration.sql);
       sql.exec(
-        'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+        "INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)",
         migration.id,
-        Date.now()
+        Date.now(),
       );
     });
   }

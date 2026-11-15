@@ -2,13 +2,13 @@
 
 WebSSH is a dual Go/pnpm monorepo. The repository root is a workspace, not an extra Go module.
 
-| Directory | Go | pnpm |
-| --- | --- | --- |
-| `apps/cli` | CLI/agent module | — |
-| `apps/web` | — | SvelteKit app |
-| `apps/state` | — | Cloudflare state Worker |
+| Directory            | Go                                                    | pnpm                                           |
+| -------------------- | ----------------------------------------------------- | ---------------------------------------------- |
+| `apps/cli`           | CLI/agent module                                      | —                                              |
+| `apps/web`           | —                                                     | SvelteKit app                                  |
+| `apps/state`         | —                                                     | Cloudflare state Worker                        |
 | `packages/transport` | Reusable client lifecycle and browser WASM entrypoint | Typed browser transport client and asset build |
-| `packages/protocol` | Protobuf schema, Go codec, fixtures | Generated TypeScript codec |
+| `packages/protocol`  | Protobuf schema, Go codec, fixtures                   | Generated TypeScript codec                     |
 
 `go.work` lists local Go modules. Each retains its own `go.mod` and `go.sum`. `pnpm-workspace.yaml` discovers `apps/*` and `packages/*`, and the root lockfile records JavaScript dependencies. The web app depends on `@webssh/transport` using `workspace:*`.
 

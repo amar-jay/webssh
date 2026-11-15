@@ -4,7 +4,11 @@ import { runtimeEnv } from "#lib/cloudflare/runtime.js";
 import { ownerStub, readForm } from "#lib/state/client.js";
 import { loadWorkspace } from "#lib/workspace.js";
 
-export const load: PageServerLoad = async ({ locals, platform, setHeaders }) => {
+export const load: PageServerLoad = async ({
+  locals,
+  platform,
+  setHeaders,
+}) => {
   setHeaders({ "cache-control": "no-store" });
   if (!locals.user) throw redirect(303, "/login?next=/machines");
   const workspace = await loadWorkspace(platform, locals.user.ownerId);
