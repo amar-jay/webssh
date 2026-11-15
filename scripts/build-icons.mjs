@@ -58,6 +58,19 @@ for (const size of [192, 512]) {
   );
 }
 
+// Keep the complete mark within the launcher's central safe area.
+await writeFile(
+  join(staticDir, "icon-maskable-512.png"),
+  await sharp({
+    create: { width: 512, height: 512, channels: 4, background: tile },
+  })
+    .composite([
+      { input: await raster(384, { opaque: true }), gravity: "centre" },
+    ])
+    .png({ compressionLevel: 9 })
+    .toBuffer(),
+);
+
 console.log(
-  "wrote favicon.ico, apple-touch-icon.png, icon-192.png, icon-512.png",
+  "wrote favicon.ico, apple-touch-icon.png, icon-192.png, icon-512.png, icon-maskable-512.png",
 );

@@ -16,6 +16,8 @@ The signed-in app lists machines, then a machine's workspaces and sessions, with
 
 `apps/web/static/icon.svg` is the single source: a Tokyo Night Moon tile with a gradient diamond and a prompt chevron. The header brand renders that same file, so the app and the browser tab cannot drift apart.
 
-`pnpm icons` reads the SVG and rewrites `favicon.ico` (16/32/48), `apple-touch-icon.png` (180), and the installable sizes `icon-192.png`/`icon-512.png`. Commit the outputs; the raster step uses the root `sharp` dev dependency and is not part of `build`. `app.html` links the icon set and `manifest.webmanifest`, and `_headers` caches them.
+`pnpm icons` reads the SVG and rewrites `favicon.ico` (16/32/48), `apple-touch-icon.png` (180), and the installable sizes `icon-192.png`/`icon-512.png`, plus `icon-maskable-512.png` with launcher-safe padding. Commit the outputs; the raster step uses the root `sharp` dev dependency and is not part of `build`. `app.html` links the icon set and `manifest.webmanifest`, and `_headers` caches them.
 
 Run `pnpm --filter @webssh/web check`, `pnpm --filter @webssh/web test`, and `pnpm --filter @webssh/web build` to validate changes.
+
+The web app manifest uses a stable `/` app ID, English metadata, standalone display, and the shared Tokyo Night Moon colors. It includes regular and maskable icons. No service worker caches authenticated pages or terminal credentials.

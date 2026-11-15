@@ -18,6 +18,8 @@
   Cache-Control: public, max-age=86400
 /icon-512.png
   Cache-Control: public, max-age=86400
+/icon-maskable-512.png
+  Cache-Control: public, max-age=86400
 /manifest.webmanifest
   Cache-Control: public, max-age=3600
 /*

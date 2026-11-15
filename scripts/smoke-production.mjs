@@ -114,6 +114,7 @@ for (const [path, type] of [
   ["/icon.svg", /image\/svg\+xml/],
   ["/apple-touch-icon.png", /image\/png/],
   ["/icon-192.png", /image\/png/],
+  ["/icon-maskable-512.png", /image\/png/],
 ]) {
   const icon = await get(path);
   assert.equal(icon.status, 200, `${path} must be served`);
@@ -131,6 +132,9 @@ const webManifestResponse = await get("/manifest.webmanifest");
 assert.equal(webManifestResponse.status, 200);
 const webManifest = await webManifestResponse.json();
 assert.equal(webManifest.short_name, "WebSSH");
+assert.equal(webManifest.id, "/");
+assert.equal(webManifest.display, "standalone");
+assert.ok(webManifest.icons.some((icon) => icon.purpose === "maskable"));
 assert.ok(webManifest.icons.some((icon) => icon.src === "/icon.svg"));
 const dev = await get("/dev/connect");
 assert.equal(dev.status, 404);
