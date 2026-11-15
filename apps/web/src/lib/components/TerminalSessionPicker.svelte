@@ -57,8 +57,8 @@
 
 <svelte:window bind:innerHeight={height} onkeydown={keydown} />
 <TerminalPanel label="sessions">
-  <div class="mb-5 flex items-start gap-3">
-    <span class="w-4 shrink-0 text-accent" aria-hidden="true">&gt;</span>
+  <div class="mb-3 flex items-start gap-3">
+    <span class="w-4 shrink-0 text-canvas" aria-hidden="true">&gt;</span>
     <div class="min-w-0 flex-1">
       <h1
         bind:this={heading}
@@ -68,17 +68,17 @@
         Choose a session
       </h1>
       {#if view.workspace}<p
-          class="mt-3 mb-0 text-sm text-secondary wrap-anywhere"
+          class="mt-1.5 mb-0 text-sm text-canvas/75 wrap-anywhere"
         >
           {view.workspace}
         </p>{/if}
     </div>
   </div>
   <div aria-busy={view.loading}>
-    {#if start}<p class="my-2 pl-7 text-xs text-secondary">
+    {#if start}<p class="my-2 pl-7 text-xs text-canvas/75">
         {start} earlier · ↑ to browse
       </p>{/if}
-    <ul class="m-0 list-none space-y-1 p-0" aria-label="Workspace sessions">
+    <ul class="m-0 list-none space-y-0.5 p-0" aria-label="Workspace sessions">
       {#each visible as choice, offset (choice.id)}
         {@const index = start + offset}
         <li>
@@ -88,16 +88,16 @@
             onfocus={() => onHighlight(index)}
             onclick={() => onChoose(index)}
             aria-current={view.selected === index ? "true" : undefined}
-            class="flex w-full items-center gap-3 rounded px-2 py-2 text-left hover:bg-accent/5 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
+            class="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-canvas/5 focus-visible:outline-2 focus-visible:outline-canvas {view.selected ===
             index
-              ? 'bg-accent/10 text-accent'
-              : 'text-ink'}"
+              ? 'bg-canvas/10 text-canvas'
+              : 'text-canvas'}"
           >
             <span class="w-3 shrink-0" aria-hidden="true"
               >{view.selected === index ? ">" : ""}</span
             >
             <span class="flex-1">{choice.id.slice(0, 8)}</span>
-            <span class="text-xs text-secondary"
+            <span class="text-xs text-canvas/75"
               >{choice.status === "active"
                 ? "in use"
                 : choice.status === "offline"
@@ -109,7 +109,7 @@
       {/each}
     </ul>
     {#if start + pageSize < view.choices.length}<p
-        class="my-2 pl-7 text-xs text-secondary"
+        class="my-2 pl-7 text-xs text-canvas/75"
       >
         {view.choices.length - start - pageSize} more · ↓ to browse
       </p>{/if}
@@ -118,23 +118,23 @@
       disabled={view.loading || !view.ready}
       onfocus={() => onHighlight(view.choices.length)}
       onclick={() => onChoose(view.choices.length)}
-      class="mt-2 flex w-full items-center gap-3 rounded px-2 py-2 text-left hover:bg-accent/5 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
+      class="mt-2 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left hover:bg-canvas/5 focus-visible:outline-2 focus-visible:outline-canvas {view.selected ===
       view.choices.length
-        ? 'bg-accent/10 text-accent'
-        : 'text-ink'}"
+        ? 'bg-canvas/10 text-canvas'
+        : 'text-canvas'}"
     >
       <span class="w-3 shrink-0" aria-hidden="true"
         >{view.selected === view.choices.length ? ">" : ""}</span
       ><span class="flex-1">New session</span>
-      {#if !view.online && view.ready}<span class="text-xs text-secondary"
+      {#if !view.online && view.ready}<span class="text-xs text-canvas/75"
           >agent offline</span
         >{/if}
     </button>
   </div>
   <p
-    class="mt-4 mb-0 text-xs leading-relaxed {view.error
-      ? 'text-danger'
-      : 'text-secondary'}"
+    class="mt-3 mb-0 text-xs leading-relaxed {view.error
+      ? 'text-[#8c2542]'
+      : 'text-canvas/75'}"
     role="status"
     aria-live="polite"
   >
@@ -144,11 +144,11 @@
   </p>
   {#snippet actions()}
     <button
-      class="bg-transparent text-ink hover:text-accent disabled:opacity-50"
+      class="bg-transparent text-canvas hover:text-canvas disabled:opacity-50"
       type="button"
       disabled={view.loading}
       data-picker-action
-      onclick={onRefresh}><kbd class="mr-2 text-accent">r</kbd>refresh</button
+      onclick={onRefresh}><kbd class="mr-2 text-canvas">r</kbd>refresh</button
     >
   {/snippet}
 </TerminalPanel>
