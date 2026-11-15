@@ -23,6 +23,9 @@
   --color-accent: #82aaff;
   --color-coral: #c099ff;
   --color-danger: #ff757f;
+  /* tmux mode-style: colour134 background, colour232 foreground. */
+  --color-terminal-selection: #af5fd7;
+  --color-terminal-selection-text: #080808;
 }
 
 @layer base {

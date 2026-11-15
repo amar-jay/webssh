@@ -57,9 +57,9 @@
 
 <svelte:window bind:innerHeight={height} onkeydown={keydown} />
 <TerminalPanel label="sessions">
-  <div class="mb-2 flex items-center gap-2">
+  <div class="mb-1 flex items-center gap-2">
     <span class="w-3 shrink-0 text-accent" aria-hidden="true">&gt;</span>
-    <div class="flex min-w-0 flex-1 items-baseline gap-3">
+    <div class="flex min-w-0 flex-1 items-baseline gap-2">
       <h1
         bind:this={heading}
         tabindex="-1"
@@ -71,7 +71,7 @@
           class="m-0 min-w-0 truncate text-sm text-secondary"
           title={view.workspace}
         >
-          {view.workspace}
+          ({view.workspace})
         </p>{/if}
     </div>
   </div>
@@ -79,26 +79,27 @@
     {#if start}<p class="my-1 pl-5 text-xs text-secondary">
         {start} earlier · ↑ to browse
       </p>{/if}
-    <ul class="m-0 list-none space-y-0.5 p-0" aria-label="Workspace sessions">
+    <ul class="m-0 list-none space-y-0 p-0" aria-label="Workspace sessions">
       {#each visible as choice, offset (choice.id)}
         {@const index = start + offset}
-        <li class="rounded bg-ink text-canvas">
+        <li
+          class={view.selected === index
+            ? "bg-terminal-selection text-terminal-selection-text"
+            : "text-ink"}
+        >
           <button
             type="button"
             disabled={view.loading}
             onfocus={() => onHighlight(index)}
             onclick={() => onChoose(index)}
             aria-current={view.selected === index ? "true" : undefined}
-            class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-canvas/10 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
-            index
-              ? 'bg-canvas/10 font-medium text-canvas'
-              : 'text-canvas'}"
+            class="flex w-full items-center gap-2 px-1 py-0 text-left text-inherit focus-visible:outline-2 focus-visible:outline-accent"
           >
             <span class="w-3 shrink-0" aria-hidden="true"
               >{view.selected === index ? ">" : ""}</span
             >
             <span class="flex-1">{choice.id.slice(0, 8)}</span>
-            <span class="text-xs text-canvas/75"
+            <span class="text-xs opacity-80"
               >{choice.status === "active"
                 ? "in use"
                 : choice.status === "offline"
@@ -108,21 +109,25 @@
           </button>
         </li>
       {/each}
-      <li class="mt-1 rounded bg-ink text-canvas">
+      <li
+        class={view.selected === view.choices.length
+          ? "bg-terminal-selection text-terminal-selection-text"
+          : "text-ink"}
+      >
         <button
           type="button"
           disabled={view.loading || !view.ready}
           onfocus={() => onHighlight(view.choices.length)}
           onclick={() => onChoose(view.choices.length)}
-          class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-canvas/10 focus-visible:outline-2 focus-visible:outline-accent {view.selected ===
-          view.choices.length
-            ? 'bg-canvas/10 font-medium text-canvas'
-            : 'text-canvas'}"
+          aria-current={view.selected === view.choices.length
+            ? "true"
+            : undefined}
+          class="flex w-full items-center gap-2 px-1 py-0 text-left text-inherit focus-visible:outline-2 focus-visible:outline-accent"
         >
           <span class="w-3 shrink-0" aria-hidden="true"
             >{view.selected === view.choices.length ? ">" : ""}</span
           ><span class="flex-1">New session</span>
-          {#if !view.online && view.ready}<span class="text-xs text-canvas/75"
+          {#if !view.online && view.ready}<span class="text-xs opacity-80"
               >agent offline</span
             >{/if}
         </button>
@@ -135,7 +140,7 @@
       </p>{/if}
   </div>
   <p
-    class="mt-2 mb-0 text-xs leading-relaxed {view.error
+    class="mt-1 mb-0 text-xs leading-relaxed {view.error
       ? 'text-danger'
       : 'text-secondary'}"
     role="status"
