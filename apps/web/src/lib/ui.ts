@@ -1,7 +1,7 @@
 /** Literal Tailwind class groups. Variants do not repeat utilities that would override each other. */
 const button =
   "inline-flex cursor-pointer items-center justify-center gap-3 rounded-lg text-sm leading-snug transition-colors disabled:cursor-not-allowed disabled:opacity-50";
-export const buttonPrimary = `${button} border border-transparent bg-accent px-[18px] py-3 font-semibold text-canvas hover:bg-[#ffd09a]`;
+export const buttonPrimary = `${button} border border-transparent bg-accent px-[18px] py-3 font-semibold text-canvas hover:bg-[#9ab8ff]`;
 export const buttonSubtle = `${button} border border-line bg-transparent px-[18px] py-3 font-semibold text-ink hover:bg-raised`;
 export const buttonQuiet = `${button} border border-transparent bg-transparent p-2.5 font-normal text-secondary hover:text-ink`;
 

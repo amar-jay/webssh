@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Tooltip } from "bits-ui";
+  import Icon from "./Icon.svelte";
   let { command, bare = false }: { command: string; bare?: boolean } = $props();
   let copied = $state(false);
   let failed = $state(false);
@@ -20,15 +21,16 @@
     : 'my-3 rounded-lg border border-line bg-canvas px-3 py-4'}"
 >
   <span class="font-mono text-accent" aria-hidden="true">$</span><code
-    class="min-w-0 font-mono text-sm text-ink wrap-anywhere">{command}</code
+    class="min-w-0 flex-1 overflow-x-auto font-mono text-sm text-ink whitespace-nowrap"
+    >{command}</code
   >
   <Tooltip.Provider
     ><Tooltip.Root
       ><Tooltip.Trigger
-        class="ml-auto rounded border border-line bg-transparent px-2 py-1 text-xs text-secondary hover:border-accent hover:text-ink"
+        class="ml-auto grid size-8 shrink-0 place-items-center rounded border border-line bg-transparent text-secondary hover:border-accent hover:text-ink"
         onclick={copy}
-        aria-label={`Copy ${command}`}
-        >{copied ? "Copied ✓" : "Copy"}</Tooltip.Trigger
+        aria-label={copied ? "Copied" : `Copy ${command}`}
+        >{#if copied}<Icon name="check" />{:else}<Icon name="copy" />{/if}</Tooltip.Trigger
       ><Tooltip.Portal
         ><Tooltip.Content
           class="z-[60] rounded bg-ink px-2.5 py-2 text-xs text-canvas"

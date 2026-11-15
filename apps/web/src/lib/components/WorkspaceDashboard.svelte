@@ -8,6 +8,7 @@
     TerminalSessionRecord,
   } from "@webssh/state/types";
   import CommandBlock from "./CommandBlock.svelte";
+  import Icon from "./Icon.svelte";
   import {
     buttonPrimary,
     buttonQuiet,
@@ -72,7 +73,7 @@
       </p>
     </div>
     <a class={buttonPrimary} href="/pair"
-      >Pair machine <span aria-hidden="true">+</span></a
+      >Pair machine <Icon name="plus" class="size-4" /></a
     >
   </div>
   {#if message}<p
@@ -172,7 +173,7 @@
                 class={buttonSubtle}
                 disabled={run.status !== "online"}
                 type="submit"
-                >Open terminal <span aria-hidden="true">↗</span></button
+                >Open terminal <Icon name="arrow-up-right" class="size-3.5" /></button
               >
             </form>
           </div>{/each}

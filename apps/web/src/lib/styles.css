@@ -11,15 +11,16 @@
   /* Symbols Nerd Font Mono supplies the private-use icons the terminal draws.
      Geist Mono does not include them, so it must stay ahead of the generic fallback. */
   --font-mono: "Geist Mono Variable", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --color-canvas: #07080a;
-  --color-surface: #14100e;
-  --color-raised: #21150f;
-  --color-line: #684735;
-  --color-ink: #fff1e6;
-  --color-secondary: #e6b99c;
-  --color-accent: #ffb347;
-  --color-coral: #ff956e;
-  --color-danger: #ffb2a6;
+  /* Tokyo Night Moon, shared with the terminal palette in theme.ts. */
+  --color-canvas: #222436;
+  --color-surface: #1e2030;
+  --color-raised: #2f334d;
+  --color-line: #3b4261;
+  --color-ink: #c8d3f5;
+  --color-secondary: #828bb8;
+  --color-accent: #82aaff;
+  --color-coral: #c099ff;
+  --color-danger: #ff757f;
 }
 
 @layer base {

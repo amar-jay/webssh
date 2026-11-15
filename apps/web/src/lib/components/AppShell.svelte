@@ -3,6 +3,7 @@
   import SetupHelp from "./SetupHelp.svelte";
   import type { Snippet } from "svelte";
   import { buttonSubtle } from "#lib/ui.js";
+  import Icon from "./Icon.svelte";
   let {
     children,
     signedIn = false,
@@ -47,7 +48,7 @@
         </form>{:else}<a
           class="{buttonSubtle} max-[720px]:px-2.5! max-[720px]:py-2! max-[720px]:text-xs!"
           href="/login"
-          >Sign in <span aria-hidden="true">↗</span></a
+          >Sign in <Icon name="log-in" class="size-3.5" /></a
         >{/if}
     </div>
   </header>

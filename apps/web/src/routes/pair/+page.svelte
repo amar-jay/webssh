@@ -2,6 +2,7 @@
   import AppShell from "#lib/components/AppShell.svelte";
   import CommandBlock from "#lib/components/CommandBlock.svelte";
   import { buttonPrimary, eyebrow, machineIcon } from "#lib/ui.js";
+  import Icon from "#lib/components/Icon.svelte";
   let { data } = $props();
   let status = $state<"idle" | "working" | "done" | "error">("idle");
   let message = $state("");
@@ -76,7 +77,7 @@
           open its browser URL.
         </div>
         <a class="{buttonPrimary} mt-[18px] w-full" href="/"
-          >Back to overview <span aria-hidden="true">→</span></a
+          >Back to overview <Icon name="arrow-right" class="size-4" /></a
         >
       {:else if !data.code || data.error}
         <div class="{machineIcon} mb-6" aria-hidden="true">›_</div>
@@ -116,7 +117,7 @@
             Keep webssh pair running while you continue.
           </p>
           <button class="{buttonPrimary} mt-[18px] w-full" type="submit"
-            >Continue <span aria-hidden="true">→</span></button
+            >Continue <Icon name="arrow-right" class="size-4" /></button
           >
         </form>
       {:else}
@@ -150,7 +151,7 @@
           onclick={approve}
           disabled={status === "working"}
           >{status === "working" ? "Approving…" : "Approve machine"}
-          <span aria-hidden="true">→</span></button
+          {#if status !== "working"}<Icon name="arrow-right" class="size-4" />{/if}</button
         >
         <p class="mt-2.5 text-xs text-secondary" aria-live="polite">
           {status === "working"

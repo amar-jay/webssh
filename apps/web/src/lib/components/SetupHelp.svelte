@@ -1,12 +1,13 @@
 <script lang="ts">
   import { Accordion, Dialog } from "bits-ui";
   import { buttonPrimary, buttonQuiet, eyebrow } from "#lib/ui.js";
+  import Icon from "./Icon.svelte";
 </script>
 
 <Dialog.Root>
   <Dialog.Trigger
     class="{buttonQuiet} max-[1000px]:text-xs! max-[720px]:p-2!"
-    >Setup guide <span aria-hidden="true">↗</span></Dialog.Trigger
+    >Setup guide <Icon name="arrow-up-right" class="size-3.5" /></Dialog.Trigger
   >
   <Dialog.Portal>
     <Dialog.Overlay class="fixed inset-0 z-50 bg-canvas/80 backdrop-blur-sm" />
@@ -24,8 +25,9 @@
         <Accordion.Item value="pair" class="border-b border-line">
           <Accordion.Header
             ><Accordion.Trigger
-              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-45"
-              >How do I pair a machine? <span aria-hidden="true">+</span
+              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-180"
+              >How do I pair a machine? <span class="transition-transform"
+                ><Icon name="chevron-down" /></span
               ></Accordion.Trigger
             ></Accordion.Header
           >
@@ -40,8 +42,9 @@
         <Accordion.Item value="next" class="border-b border-line">
           <Accordion.Header
             ><Accordion.Trigger
-              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-45"
-              >What happens after pairing? <span aria-hidden="true">+</span
+              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-180"
+              >What happens after pairing? <span class="transition-transform"
+                ><Icon name="chevron-down" /></span
               ></Accordion.Trigger
             ></Accordion.Header
           >
@@ -57,8 +60,9 @@
         <Accordion.Item value="expired" class="border-b border-line">
           <Accordion.Header
             ><Accordion.Trigger
-              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-45"
-              >My code has expired <span aria-hidden="true">+</span
+              class="flex w-full items-center justify-between border-0 bg-transparent py-[18px] text-left text-sm text-ink [&[data-state=open]>span]:rotate-180"
+              >My code has expired <span class="transition-transform"
+                ><Icon name="chevron-down" /></span
               ></Accordion.Trigger
             ></Accordion.Header
           >
