@@ -2,10 +2,6 @@
   import { onMount } from 'svelte';
   import { createTerminal, type SessionTerminal, type TerminalOptions } from '#lib/terminal/create-terminal.js';
   import '@xterm/xterm/css/xterm.css';
-  import '@fontsource/jetbrains-mono/400.css';
-  import '@fontsource/jetbrains-mono/700.css';
-  import '@fontsource/jetbrains-mono/400-italic.css';
-  import '@fontsource/jetbrains-mono/700-italic.css';
   import '#lib/terminal/fonts.css';
   import { tokyoNightMoon } from '#lib/terminal/theme.js';
 
@@ -58,13 +54,9 @@
   });
 </script>
 
-<div class="session-terminal" style:background={tokyoNightMoon.background} bind:this={container} aria-label={`Terminal session ${sessionId}`}></div>
-
-<style>
-  .session-terminal {
-    position: fixed;
-    inset: 0;
-    padding: 12px;
-    overflow: hidden;
-  }
-</style>
+<div
+  class="fixed inset-0 overflow-hidden p-3 font-mono text-sm"
+  style:background={tokyoNightMoon.background}
+  bind:this={container}
+  aria-label={`Terminal session ${sessionId}`}
+></div>

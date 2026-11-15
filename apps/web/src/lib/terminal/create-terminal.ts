@@ -8,6 +8,10 @@ import {
 } from "./output-policy.js";
 import { tokyoNightMoon } from "./theme.js";
 
+/** Text from Geist Mono; Nerd Font symbols for prompts, files, and powerline icons. */
+export const terminalFontFamily =
+  '"Geist Mono Variable", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
 export interface TerminalOptions {
   screenReader?: boolean;
   unicode?: "11" | "graphemes";
@@ -53,8 +57,7 @@ export async function createTerminal(
     allowProposedApi: true, // Unicode providers and image/serialize addons use proposed APIs.
     cursorBlink: true,
     screenReaderMode: options.screenReader ?? false,
-    fontFamily:
-      '"JetBrains Mono", "Symbols Nerd Font Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    fontFamily: terminalFontFamily,
     fontSize: 14,
     scrollback: terminalLimits.scrollback,
     windowOptions: {},
@@ -94,10 +97,10 @@ export async function createTerminal(
     // Canvas text does not trigger web-font downloads automatically. Load the
     // terminal faces explicitly before xterm measures its cell dimensions.
     await Promise.allSettled([
-      document.fonts.load('14px "JetBrains Mono"'),
-      document.fonts.load('700 14px "JetBrains Mono"'),
-      document.fonts.load('italic 14px "JetBrains Mono"'),
-      document.fonts.load('700 italic 14px "JetBrains Mono"'),
+      document.fonts.load('14px "Geist Mono Variable"'),
+      document.fonts.load('700 14px "Geist Mono Variable"'),
+      document.fonts.load('italic 14px "Geist Mono Variable"'),
+      document.fonts.load('700 italic 14px "Geist Mono Variable"'),
       document.fonts.load(
         '14px "Symbols Nerd Font Mono"',
         "\uf07b\ue5ff\uf120",
