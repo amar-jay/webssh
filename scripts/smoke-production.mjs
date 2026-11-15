@@ -28,6 +28,21 @@ assert.match(root.headers.get("content-security-policy"), /wasm-unsafe-eval/);
 const session = await get("/s/release_smoke");
 assert.equal(session.status, 303);
 assert.match(session.headers.get("location"), /^\/login\?/);
+const help = await get("/help");
+assert.equal(help.status, 200);
+assert.match(await help.text(), /How do I pair a machine/);
+for (const path of ["/dashboard", "/sessions"]) {
+  const response = await fetch(origin + path, {
+    redirect: "manual", headers: { cookie: "webssh_dev=1" },
+    signal: AbortSignal.timeout(15000),
+  });
+  assert.equal(response.status, 303);
+  assert.match(response.headers.get("location"), /^\/login/);
+}
+const installer = await get("/install.sh");
+assert.equal(installer.status, 200);
+assert.match(installer.headers.get("cache-control"), /no-store/);
+assert.equal(await installer.text(), await readFile(new URL("./install.sh", import.meta.url), "utf8"));
 const dev = await get("/dev/connect");
 assert.equal(dev.status, 404);
 const m = await get("/tailcat/build.json");
