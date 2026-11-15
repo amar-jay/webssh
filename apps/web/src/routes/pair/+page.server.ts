@@ -1,16 +1,17 @@
+import { normalizePairingCode, validPairingCode } from "#lib/pairing-code.js";
 import { pairingStub } from "#lib/state/client.js";
 import { runtimeEnv } from "#lib/cloudflare/runtime.js";
 import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ url, locals, platform }) => {
-  const raw = (url.searchParams.get("code") || "").trim().toUpperCase();
+  const raw = normalizePairingCode(url.searchParams.get("code") || "");
   if (!raw) {
     if (!locals.user)
       throw redirect(303, `/login?next=${encodeURIComponent("/pair")}`);
     return { code: "", error: null, user: locals.user };
   }
-  if (!/^[A-Z0-9]{8}$/.test(raw)) {
+  if (!validPairingCode(raw)) {
     return { code: "", error: "invalid_code", user: locals.user };
   }
   if (!locals.user) {

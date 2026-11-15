@@ -55,7 +55,7 @@ test("pairing page reads Worker bindings when platform is absent", async () => {
     },
   ]);
   const result = await pair.load({
-    url: new URL("https://webssh.example/pair?code=abcdefgh"),
+    url: new URL("https://webssh.example/pair?code=abcd-efgh"),
     locals: { user: { ownerId: "42" } },
   });
   assert.equal(result.error, null);

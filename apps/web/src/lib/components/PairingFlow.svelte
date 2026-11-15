@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
+  import { normalizePairingCode, validPairingCode } from "#lib/pairing-code.js";
   import CheckCircle2 from "@lucide/svelte/icons/circle-check";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import Monitor from "@lucide/svelte/icons/monitor";
@@ -20,6 +21,16 @@
   let pairedName = $state("");
   const controller = new AbortController();
   onDestroy(() => controller.abort());
+
+  function normalizeInput(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    input.value = normalizePairingCode(input.value);
+    input.setCustomValidity(
+      input.value && !validPairingCode(input.value)
+        ? "Enter the 8 letters and numbers shown by webssh pair."
+        : "",
+    );
+  }
 
   async function approve() {
     if (!code || status === "working" || status === "done") return;
@@ -101,7 +112,9 @@
         type="text"
         placeholder="XXXXXXXX"
         minlength="8"
-        maxlength="8"
+        maxlength="64"
+        oninput={normalizeInput}
+        title="Enter the 8 letters and numbers shown by webssh pair."
         pattern="[A-Za-z0-9]{8}"
         required
         autocomplete="off"
