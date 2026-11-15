@@ -77,6 +77,8 @@ LOG_LEVEL=debug webssh serve .
 LOG_FORMAT=json webssh serve --json . 2>agent.log
 ```
 
+Terminal text logs use Tokyo Night Moon colors for timestamps and severity. `NO_COLOR` disables colors; `TERM=dumb`, redirected output, and JSON output never contain ANSI styling. During `serve` startup, normal diagnostics appear after the workspace/browser URL output, retaining their original timestamps. Errors flush startup diagnostics immediately.
+
 Prompts, pairing/approval links, session listings, and the `serve --json` result remain command output, separate from diagnostics. Native terminal input/output stays untouched; connection diagnostics are emitted outside raw-mode attachment. A remote process's exit status remains its exit status, with no extra error record for an otherwise silent remote exit.
 
 Log records include timestamps, severity, application/component and fixed lifecycle event names. Connection open/close events use `debug`, access denials and connection limits use `warn`, and relay failure uses `error`. Common credential fields, private keys, grants, connection addresses, identifiers, URLs and absolute paths are redacted by the handler. Do not add command contents, terminal output, arbitrary configuration structs or raw upstream transport diagnostics to log records; Tailcat debug output remains disabled at every CLI log level. Logs are not written to disk unless you redirect stderr.

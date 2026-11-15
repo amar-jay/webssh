@@ -199,7 +199,8 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 		return nil
 	}
-	lifecycle := logging.From(ctx).With("component", "agent")
+	lifecycle, flushStartup := logging.BufferStartup(logging.From(ctx).With("component", "agent"))
+	defer flushStartup() // Startup failures still emit the queued diagnostics.
 	opts.Event = func(event agent.Event) { logAgentEvent(ctx, lifecycle, event) }
 	server, err := agent.New(opts)
 	if err != nil {
@@ -233,6 +234,9 @@ func runServe(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 	err = server.Run(ctx, func(info agent.Info) error {
+		// Announce and print the workspace first. Errors remain immediate through
+		// the startup handler; successful startup records appear below the URL.
+		defer flushStartup()
 		if control != nil {
 			if err := retryControl(ctx, func(c context.Context) error {
 				return syncRun(c, pairing.RunUpdate{Operation: "announce", RunID: runID, Address: info.Address, Port: info.Port, DERPMapURL: opts.DERPMapURL})

@@ -57,17 +57,26 @@ func New(output io.Writer, format, level string) (*slog.Logger, error) {
 	if output == nil {
 		output = os.Stderr
 	}
+	isTerminal := false
+	if file, ok := output.(interface{ Fd() uintptr }); ok {
+		isTerminal = term.IsTerminal(int(file.Fd()))
+	}
 	if format == "auto" {
 		format = "json"
-		if file, ok := output.(interface{ Fd() uintptr }); ok && term.IsTerminal(int(file.Fd())) {
+		if isTerminal {
 			format = "text"
 		}
 	}
+
 	opts := &slog.HandlerOptions{Level: minimum, ReplaceAttr: replaceAttr}
 	var handler slog.Handler
 	switch format {
 	case "text":
-		handler = slog.NewTextHandler(output, opts)
+		textOutput := output
+		if isTerminal && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+			textOutput = colorWriter{output: output}
+		}
+		handler = slog.NewTextHandler(textOutput, opts)
 	case "json":
 		handler = slog.NewJSONHandler(output, opts)
 	default:
