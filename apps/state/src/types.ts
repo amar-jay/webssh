@@ -88,6 +88,7 @@ export interface StateAPI {
   startRunSession(
     ownerId: string,
     runId: string,
+    createNew?: boolean,
   ): Promise<TerminalSessionRecord>;
   endTerminalSession(ownerId: string, id: string): Promise<boolean>;
   resolveSession(

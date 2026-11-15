@@ -3,6 +3,9 @@
     attachPairedSession,
     type ConnectionStatus as Status,
   } from "#lib/session/paired-session.js";
+  import { replaceState } from "$app/navigation";
+  import { page } from "$app/state";
+  import { pickTerminalSession } from "#lib/terminal/session-picker.js";
   import ConnectionStatus from "#lib/components/ConnectionStatus.svelte";
   let status = $state<Status | null>({
     phase: "connecting",
@@ -22,16 +25,30 @@
   function attach(controller: Controller) {
     const local = dev ? takeLocalSession(params.session_id) : undefined;
     if (!local) {
-      const session = attachPairedSession(controller, params.session_id, {
-        onStatus: (next) => {
-          status = next;
+      status = null;
+      let session: ReturnType<typeof attachPairedSession> | undefined;
+      const picker = pickTerminalSession(
+        controller.terminal,
+        params.session_id,
+        {
+          onSelect(id) {
+            replaceState(`/s/${encodeURIComponent(id)}`, page.state);
+            session = attachPairedSession(controller, id, {
+              onStatus: (next) => {
+                status = next;
+              },
+            });
+            retry = () => {
+              void session?.retry();
+              controller.terminal.focus();
+            };
+          },
         },
-      });
-      retry = () => {
-        void session.retry();
-        controller.terminal.focus();
+      );
+      return () => {
+        picker.dispose();
+        session?.dispose();
       };
-      return () => session.dispose();
     }
     status = null;
     const session = attachRemoteSession(controller, local.connection, {

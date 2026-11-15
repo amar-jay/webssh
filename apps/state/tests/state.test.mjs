@@ -918,3 +918,51 @@ test("native CLI approvals are expiring, secret-protected and consumed once unde
     await mf.dispose();
   }
 });
+
+test("explicit new tmux sessions are distinct while default starts remain idempotent", async () => {
+  const mf = new Miniflare({
+    modules: true,
+    script: source.outputFiles[0].text,
+    compatibilityDate: "2026-08-06",
+    durableObjects: { STATE: { className: "WebSSHState", useSQLite: true } },
+  });
+  try {
+    const ns = await mf.getDurableObjectNamespace("STATE");
+    const owner = ns.get(ns.idFromName("owner:picker"));
+    const agent = await owner.registerAgent("picker", "box");
+    const runId = "picker_run_123456789";
+    const update = (operation, rest = {}) =>
+      owner.agentRun("picker", agent.agentId, agent.agentToken, {
+        operation,
+        runId,
+        backend: "tmux",
+        generation: "picker_generation_1234",
+        ...rest,
+      });
+    await update("start", { machineName: "box", workspaceLabel: "project" });
+    await update("announce", { address: "tcPickerAddress123456", port: 2222 });
+    const original = await owner.startRunSession("picker", runId);
+    const created = await Promise.all([
+      owner.startRunSession("picker", runId, true),
+      owner.startRunSession("picker", runId, true),
+    ]);
+    assert.equal(
+      new Set([
+        original.terminalSessionId,
+        ...created.map((s) => s.terminalSessionId),
+      ]).size,
+      3,
+    );
+    const starts = await Promise.all([
+      owner.startRunSession("picker", runId),
+      owner.startRunSession("picker", runId),
+    ]);
+    assert.equal(starts[0].terminalSessionId, starts[1].terminalSessionId);
+    assert.equal((await owner.listTerminalSessions("picker")).length, 3);
+    await assert.rejects(owner.startRunSession("other-owner", runId, true));
+    await update("offline");
+    await assert.rejects(owner.startRunSession("picker", runId, true));
+  } finally {
+    await mf.dispose();
+  }
+});

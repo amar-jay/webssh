@@ -579,3 +579,76 @@ test("localhost login uses OAuth instead of a fabricated user", async () => {
     ["webssh_oauth"],
   );
 });
+
+test("terminal picker limits metadata and new sessions to the owned reference run", async () => {
+  const choices = await moduleAt(
+    "src/routes/api/sessions/[session_id]/choices/+server.ts",
+  );
+  let created = 0;
+  const state = {
+    getTerminalSession: async (owner, id) =>
+      owner === "42" && id === "reference"
+        ? { runId: "run-a", agentId: "agent-a" }
+        : null,
+    listRuns: async () => [
+      {
+        runId: "run-a",
+        agentId: "agent-a",
+        backend: "tmux",
+        workspaceLabel: "project",
+        status: "online",
+      },
+    ],
+    listTerminalSessions: async () => [
+      {
+        terminalSessionId: "session-a",
+        runId: "run-a",
+        agentId: "agent-a",
+        status: "connecting",
+        createdAt: 1,
+        private: "never serialize",
+      },
+      {
+        terminalSessionId: "wrong-run",
+        runId: "run-b",
+        agentId: "agent-a",
+        status: "connecting",
+      },
+      {
+        terminalSessionId: "ended",
+        runId: "run-a",
+        agentId: "agent-a",
+        status: "ended",
+      },
+    ],
+    startRunSession: async (owner, runId, createNew) => {
+      assert.equal(owner, "42");
+      assert.equal(runId, "run-a");
+      assert.equal(createNew, true);
+      created++;
+      return { terminalSessionId: "new-session" };
+    },
+  };
+  const event = {
+    locals: { user: { ownerId: "42" } },
+    params: { session_id: "reference" },
+    platform: {
+      env: { WEBSSH_STATE: { idFromName: (name) => name, get: () => state } },
+    },
+  };
+  const response = await choices.GET(event);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.deepEqual((await response.json()).sessions, [
+    { id: "session-a", status: "connecting", createdAt: 1 },
+  ]);
+  assert.equal(created, 0);
+  assert.equal((await choices.POST(event)).status, 201);
+  assert.equal(created, 1);
+  assert.equal((await choices.GET({ ...event, locals: {} })).status, 401);
+  assert.equal(
+    (await choices.POST({ ...event, params: { session_id: "foreign" } }))
+      .status,
+    404,
+  );
+  assert.equal(created, 1);
+});

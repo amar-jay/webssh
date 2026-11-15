@@ -21,3 +21,11 @@ The signed-in app lists machines, then a machine's workspaces and sessions, with
 Run `pnpm --filter @webssh/web check`, `pnpm --filter @webssh/web test`, and `pnpm --filter @webssh/web build` to validate changes.
 
 The web app manifest uses a stable `/` app ID, English metadata, standalone display, and the shared Tokyo Night Moon colors. It includes regular and maskable icons. No service worker caches authenticated pages or terminal credentials.
+
+## Terminal session picker
+
+For paired tmux workspaces, `/s/<session_id>` starts with a local terminal picker before resolving any connection grant. Use Up/Down and Enter to open a WebSSH-owned session in the same workspace, `n` for a new session, or `r` to refresh. Occupied sessions require the other controller to detach; the picker never takes over. Ended sessions and sessions awaiting termination are excluded. Ephemeral sessions and the explicit development connector keep their direct connection flow.
+
+The picker lists application session metadata from the state service, not arbitrary sessions on the machine's default tmux socket. An available session record may create its tmux process on its first attachment. Selecting New creates a separate record and then attaches; abandoning the picker creates no process. Reload shows the picker again, while a connection interruption after selection uses the existing bounded reconnect behavior. Picker input is discarded before remote input listeners are registered.
+
+Deploy the state worker before the web worker for this change: the state RPC adds an optional `createNew` argument to `startRunSession`. Existing callers retain the previous reuse behavior. The picker API returns only no-store metadata; it never returns grants or transport credentials.

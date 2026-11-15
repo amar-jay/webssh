@@ -1096,6 +1096,7 @@ export class WebSSHState extends DurableObject<Env> {
   async startRunSession(
     ownerId: string,
     runId: string,
+    createNew = false,
   ): Promise<TerminalSessionRecord> {
     const id = await randomId(16);
     const sessionId = this.ctx.storage.transactionSync(() => {
@@ -1127,7 +1128,9 @@ export class WebSSHState extends DurableObject<Env> {
           ownerId,
         )
         .next().value;
-      if (existing) return String(existing.terminal_session_id);
+      if (createNew && run.backend !== "tmux")
+        throw new Error("invalid_operation");
+      if (existing && !createNew) return String(existing.terminal_session_id);
       this.sessionCapacity(ownerId, runId);
       this.ctx.storage.sql.exec(
         `INSERT INTO terminal_sessions (terminal_session_id,owner_id,agent_id,workspace_label,status,created_at,run_id) VALUES (?,?,?,?,'pending',?,?)`,
