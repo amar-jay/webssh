@@ -66,7 +66,8 @@ assert.equal(help.status, 200);
 const helpHtml = await help.text();
 assert.match(helpHtml, /How do I pair a machine/);
 assert.match(helpHtml, /aria-current="page">Help</, "help tab is current");
-assert.match(helpHtml, /Logging and environment/);
+assert.match(helpHtml, /log_level/);
+assert.doesNotMatch(helpHtml, /LOG_LEVEL|LOG_FORMAT|NO_COLOR/);
 for (const path of ["/machines", "/machines/release_smoke"]) {
   const response = await fetch(origin + path, {
     redirect: "manual",
